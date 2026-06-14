@@ -18,6 +18,7 @@ namespace FileTransfer.Server
     {
         private TcpServer _server;
 
+        // Labels
         private Label lblTitle;
         private Label lblSubtitle;
         private Label lblIpValue;
@@ -27,12 +28,14 @@ namespace FileTransfer.Server
         private Label lblDbStatus;
         private Label lblFooter;
         private Label lblUptime;
+        private Label lblStatusDot;
+        private Label lblStatusText;
 
-        private Label lblStatus;
-
+        // Hidden inputs
         private TextBox txtIp;
         private TextBox txtPort;
 
+        // Buttons
         private Button btnStart;
         private Button btnStop;
         private Button btnRestart;
@@ -45,817 +48,638 @@ namespace FileTransfer.Server
         private Button btnPushFile;
         private Timer _pushTimer;
 
+        // Logs
         private ListBox lstLogs;
 
+        // Timers
         private DateTime? _startedAt;
         private TimeSpan _pausedTotal = TimeSpan.Zero;
         private Timer _timer;
         private ToolTip _toolTip;
 
+        // Design tokens
+        private static readonly Color C_BG = Color.FromArgb(10, 10, 12);
+        private static readonly Color C_SURFACE = Color.FromArgb(16, 16, 20);
+        private static readonly Color C_BORDER = Color.FromArgb(32, 32, 40);
+        private static readonly Color C_MUTED = Color.FromArgb(90, 90, 105);
+        private static readonly Color C_SUBTLE = Color.FromArgb(160, 160, 175);
+        private static readonly Color C_TEXT = Color.FromArgb(225, 225, 230);
+        private static readonly Color C_WHITE = Color.FromArgb(245, 245, 250);
+        private static readonly Color C_GREEN = Color.FromArgb(100, 220, 140);
+        private static readonly Color C_RED = Color.FromArgb(220, 90, 90);
+        private static readonly Color C_ACCENT = Color.FromArgb(140, 140, 240);
+
+        private static readonly Font F_TITLE = new Font("Segoe UI", 16F, FontStyle.Bold);
+        private static readonly Font F_SUBTITLE = new Font("Segoe UI", 9F, FontStyle.Regular);
+        private static readonly Font F_SECTION = new Font("Segoe UI", 9F, FontStyle.Bold);
+        private static readonly Font F_LABEL = new Font("Segoe UI", 9F);
+        private static readonly Font F_VALUE = new Font("Segoe UI", 10F, FontStyle.Bold);
+        private static readonly Font F_BTN = new Font("Segoe UI", 9F, FontStyle.Bold);
+        private static readonly Font F_MONO = new Font("Consolas", 9.5F);
+        private static readonly Font F_STATUS = new Font("Segoe UI", 11F, FontStyle.Bold);
+
         public Form1()
-
         {
-            
             InitializeComponent();
+            BuildUI();
 
-            BuildModernUi();
-            _toolTip = new ToolTip();
-
-            _toolTip.AutoPopDelay = 10000;
-            _toolTip.InitialDelay = 300;
-            _toolTip.ReshowDelay = 100;
-            _toolTip.ShowAlways = true;
+            _toolTip = new ToolTip
+            {
+                AutoPopDelay = 10000,
+                InitialDelay = 300,
+                ReshowDelay = 100,
+                ShowAlways = true
+            };
 
             txtPort.Text = "9000";
             txtIp.Text = GetLocalIpAddress();
 
             btnStop.Enabled = false;
 
-            lblStatus.Text = "STOPPED";
-            lblStatus.ForeColor =
-                Color.FromArgb(239, 68, 68);
+            SetStatus(false);
 
             lblIpValue.Text = txtIp.Text;
             lblPortValue.Text = txtPort.Text;
+            lblStartedAt.Text = "—";
 
-            lblStartedAt.Text = "-";
+            _toolTip.SetToolTip(lblStoragePath, GetStorageFolder());
+            lblStoragePath.Cursor = Cursors.Hand;
+            lblStoragePath.ForeColor = C_ACCENT;
+            lblStoragePath.Click += btnOpenStorage_Click;
 
-            string storagePath = GetStorageFolder();
-
-            string fullStoragePath = GetStorageFolder();
-
-           
-
-            lblStoragePath.Text =
-                "Server Storage";
-
-            _toolTip.SetToolTip(
-                lblStoragePath,
-                fullStoragePath);
-
-            lblStoragePath.Cursor =
-                Cursors.Hand;
-
-            lblStoragePath.ForeColor =
-                Color.FromArgb(96, 165, 250);
-
-            lblStoragePath.Click +=
-                btnOpenStorage_Click;
-
-            lblDbStatus.Text =
-                "PostgreSQL Render";
-
-            lblFooter.Text =
-                "Server is stopped";
+            lblDbStatus.Text = "MySql";
 
             _server = new TcpServer();
             _server.OnLog += AddLog;
 
-            _timer = new Timer();
-            _timer.Interval = 1000;
+            _timer = new Timer { Interval = 1000 };
             _timer.Tick += Timer_Tick;
             _timer.Start();
 
-            AddLog("Server UI initialized");
+            AddLog("Server UI initialized.");
         }
 
-        private void BuildModernUi()
+        // ────────────────────────────────────────────────────
+        //  UI CONSTRUCTION
+        // ────────────────────────────────────────────────────
+
+        private void BuildUI()
         {
-            this.Text =
-                "Secure File Transfer Server";
-
-            this.WindowState =
-                FormWindowState.Maximized;
-
-            this.StartPosition =
-                FormStartPosition.CenterScreen;
-
-            this.BackColor =
-                Color.FromArgb(11, 18, 32);
-
-            this.Font =
-                new Font("Segoe UI", 10F);
-
-            this.Controls.Clear();
-
-            TableLayoutPanel root =
-                new TableLayoutPanel();
-
-            root.Dock = DockStyle.Fill;
-
-            root.Padding =
-                new Padding(14);
-
-            root.BackColor =
-                Color.FromArgb(11, 18, 32);
-
-            root.ColumnCount = 1;
-            root.RowCount = 4;
-
-            root.RowStyles.Add(
-                new RowStyle(SizeType.Absolute, 90));
-
-            root.RowStyles.Add(
-                new RowStyle(SizeType.Absolute, 120));
-
-            root.RowStyles.Add(
-                new RowStyle(SizeType.Percent, 100));
-
-            root.RowStyles.Add(
-                new RowStyle(SizeType.Absolute, 52));
-
-            this.Controls.Add(root);
-
-            Panel header = CreateCard();
-
-            header.Dock = DockStyle.Fill;
-
-            root.Controls.Add(header);
-
-            lblTitle = new Label();
-
-            lblTitle.Text =
-                "SECURE FILE TRANSFER SERVER";
-
-            lblTitle.Font =
-                new Font(
-                    "Segoe UI",
-                    20F,
-                    FontStyle.Bold);
-
-            lblTitle.ForeColor =
-                Color.White;
-
-            lblTitle.AutoSize = true;
-
-            lblTitle.Location =
-                new Point(28, 24);
-
-            header.Controls.Add(lblTitle);
-
-            lblSubtitle = new Label();
-
-            lblSubtitle.Text =
-                "Real-time | Encrypted | Reliable | Secure";
-
-            lblSubtitle.Font =
-                new Font("Segoe UI", 9F);
-
-            lblSubtitle.ForeColor =
-                Color.FromArgb(203, 213, 225);
-
-            lblSubtitle.AutoSize = true;
-
-            lblSubtitle.Location =
-                new Point(31, 70);
-
-            header.Controls.Add(lblSubtitle);
-
-            Panel statusCard =
-                CreateSmallCard(330, 80);
-
-            statusCard.Anchor =
-                AnchorStyles.Top | AnchorStyles.Right;
-
-            statusCard.Location =
-                new Point(700, 10);
-
-            header.Controls.Add(statusCard);
-
-            Label lblStatusTitle =
-                CreateSmallLabel(
-                    "SERVER STATUS",
-                    14,
-                    12);
-
-            statusCard.Controls.Add(lblStatusTitle);
-
-            lblStatus = new Label();
-
-            lblStatus.Text = "STOPPED";
-
-            lblStatus.Font =
-                new Font(
-                    "Segoe UI",
-                    17F,
-                    FontStyle.Bold);
-
-            lblStatus.ForeColor =
-                Color.FromArgb(239, 68, 68);
-
-            lblStatus.AutoSize = true;
-
-            lblStatus.Location =
-                new Point(14, 34);
-
-            statusCard.Controls.Add(lblStatus);
-
-            Panel infoCard =
-                CreateSmallCard(300, 65);
-
-            infoCard.Anchor =
-                AnchorStyles.Top | AnchorStyles.Right;
-
-            infoCard.Location =
-                new Point(1045, 10);
-
-            header.Controls.Add(infoCard);
-
-            Label lblIpTitle =
-                CreateSmallLabel(
-                    "IP / PORT",
-                    14,
-                    12);
-
-            infoCard.Controls.Add(lblIpTitle);
-
-            lblIpValue =
-                CreateValueLabel("-", 14, 36);
-
-            infoCard.Controls.Add(lblIpValue);
-
-            lblPortValue =
-                CreateValueLabel("-", 170, 36);
-
-            infoCard.Controls.Add(lblPortValue);
-
-            FlowLayoutPanel actionRow =
-                new FlowLayoutPanel();
-
-            actionRow.Dock = DockStyle.Fill;
-
-            actionRow.BackColor =
-                Color.Transparent;
-
-            actionRow.Padding =
-                new Padding(0, 10, 0, 0);
-
-            root.Controls.Add(actionRow);
-
-            Panel serverControl =
-                CreateCard();
-
-            serverControl.Width = 520;
-            serverControl.Height = 105;
-
-            serverControl.Margin =
-                new Padding(0, 0, 14, 0);
-
-            actionRow.Controls.Add(serverControl);
-
-            Label lblControl =
-                CreateSectionTitle(
-                    "Server Control",
-                    16,
-                    12);
-
-            serverControl.Controls.Add(lblControl);
-
-            txtIp = new TextBox();
-            txtIp.Visible = false;
-
-            txtPort = new TextBox();
-            txtPort.Visible = false;
-
-            btnStart =
-                CreateButton(
-                    "Start Server",
-                    Color.FromArgb(22, 128, 61),
-                    150);
-
-            btnStart.Location =
-                new Point(16, 44);
-
+            Text = "Secure File Transfer — Server";
+            WindowState = FormWindowState.Maximized;
+            StartPosition = FormStartPosition.CenterScreen;
+            BackColor = C_BG;
+            Font = F_LABEL;
+
+            Controls.Clear();
+
+            // Hidden inputs
+            txtIp = new TextBox { Visible = false };
+            txtPort = new TextBox { Visible = false };
+            Controls.Add(txtIp);
+            Controls.Add(txtPort);
+
+            // Root layout: header | toolbar | body | footer
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 4,
+                BackColor = C_BG,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // header
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));   // toolbar
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // body
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // footer
+            Controls.Add(root);
+
+            root.Controls.Add(BuildHeader());
+            root.Controls.Add(BuildToolbar());
+            root.Controls.Add(BuildBody());
+            root.Controls.Add(BuildFooter());
+        }
+
+        // ── Header ──────────────────────────────────────────
+
+        private Panel BuildHeader()
+        {
+            var panel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = C_SURFACE,
+                Padding = new Padding(0)
+            };
+
+            // Left border accent line
+            var accent = new Panel
+            {
+                Width = 3,
+                Height = 72,
+                BackColor = C_ACCENT,
+                Location = new Point(0, 0)
+            };
+            panel.Controls.Add(accent);
+
+            lblTitle = new Label
+            {
+                Text = "Secure File Transfer",
+                Font = F_TITLE,
+                ForeColor = C_WHITE,
+                AutoSize = true,
+                Location = new Point(24, 14)
+            };
+            panel.Controls.Add(lblTitle);
+
+            lblSubtitle = new Label
+            {
+                Text = "Encrypted · Real-time · Reliable",
+                Font = F_SUBTITLE,
+                ForeColor = C_MUTED,
+                AutoSize = true,
+                Location = new Point(26, 44)
+            };
+            panel.Controls.Add(lblSubtitle);
+
+            // Status badge — anchored right
+            var statusBox = new Panel
+            {
+                Width = 180,
+                Height = 40,
+                BackColor = C_BG,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Location = new Point(this.Width - 210, 16)
+            };
+            panel.Controls.Add(statusBox);
+
+            lblStatusDot = new Label
+            {
+                Text = "●",
+                Font = new Font("Segoe UI", 11F),
+                ForeColor = C_RED,
+                AutoSize = true,
+                Location = new Point(0, 4)
+            };
+            statusBox.Controls.Add(lblStatusDot);
+
+            lblStatusText = new Label
+            {
+                Text = "STOPPED",
+                Font = F_STATUS,
+                ForeColor = C_RED,
+                AutoSize = true,
+                Location = new Point(22, 4)
+            };
+            statusBox.Controls.Add(lblStatusText);
+
+            // Keep status right-aligned on resize
+            panel.Resize += (s, e) =>
+            {
+                statusBox.Left = panel.Width - statusBox.Width - 28;
+            };
+
+            // Also store ref as lblStatus equivalent (use lblStatusText)
+            return panel;
+        }
+
+        // ── Toolbar ─────────────────────────────────────────
+
+        private Panel BuildToolbar()
+        {
+            var bar = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = C_BG,
+                Padding = new Padding(0)
+            };
+
+            // Top hairline
+            var line = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = C_BORDER };
+            bar.Controls.Add(line);
+            // Bottom hairline
+            var line2 = new Panel { Height = 1, Dock = DockStyle.Bottom, BackColor = C_BORDER };
+            bar.Controls.Add(line2);
+
+            int x = 20;
+
+            btnStart = MakeToolBtn("▶  Start", C_GREEN, ref x);
             btnStart.Click += btnStart_Click;
+            bar.Controls.Add(btnStart);
 
-            serverControl.Controls.Add(btnStart);
-
-            btnStop =
-                CreateButton(
-                    "Stop Server",
-                    Color.FromArgb(220, 38, 38),
-                    150);
-
-            btnStop.Location =
-                new Point(180, 44);
-
+            btnStop = MakeToolBtn("■  Stop", C_RED, ref x);
             btnStop.Click += btnStop_Click;
+            bar.Controls.Add(btnStop);
 
-            serverControl.Controls.Add(btnStop);
-
-            btnRestart =
-                CreateButton(
-                    "Restart",
-                    Color.FromArgb(51, 65, 85),
-                    135);
-
-            btnRestart.Location =
-                new Point(344, 44);
-
+            btnRestart = MakeToolBtn("↺  Restart", C_MUTED, ref x);
             btnRestart.Click += btnRestart_Click;
+            bar.Controls.Add(btnRestart);
 
-            serverControl.Controls.Add(btnRestart);
+            // Separator
+            x += 12;
+            var sep = new Panel { Width = 1, Height = 28, BackColor = C_BORDER, Location = new Point(x, 14) };
+            bar.Controls.Add(sep);
+            x += 16;
 
-            Panel actions =
-                CreateCard();
+            btnOpenStorage = MakeToolBtn("⊞  Storage", C_SUBTLE, ref x);
+            btnOpenStorage.Click += btnOpenStorage_Click;
+            bar.Controls.Add(btnOpenStorage);
 
-            actions.Width = 620;
-            actions.Height = 105;
+            btnClearLogs = MakeToolBtn("⌫  Clear Logs", C_SUBTLE, ref x);
+            btnClearLogs.Click += btnClearLogs_Click;
+            bar.Controls.Add(btnClearLogs);
 
-            actionRow.Controls.Add(actions);
+            btnClearDbLogs = MakeToolBtn("⌫  Clear DB", C_SUBTLE, ref x);
+            btnClearDbLogs.Click += btnClearDbLogs_Click;
+            bar.Controls.Add(btnClearDbLogs);
 
-            Label lblActions =
-                CreateSectionTitle(
-                    "Actions",
-                    16,
-                    12);
+            return bar;
+        }
 
-            actions.Controls.Add(lblActions);
+        private Button MakeToolBtn(string text, Color fg, ref int x)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Font = F_BTN,
+                ForeColor = fg,
+                BackColor = C_BG,
+                FlatStyle = FlatStyle.Flat,
+                Height = 32,
+                AutoSize = true,
+                Location = new Point(x, 12),
+                Padding = new Padding(10, 0, 10, 0),
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderColor = C_BORDER;
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.MouseOverBackColor = C_SURFACE;
+            btn.FlatAppearance.MouseDownBackColor = C_BORDER;
 
-            btnOpenStorage =
-                CreateButton(
-                    "Open Storage",
-                    Color.FromArgb(37, 99, 235),
-                    150);
+            // Measure approximate width
+            x += TextRenderer.MeasureText(text, F_BTN).Width + 32;
 
-            btnOpenStorage.Location =
-                new Point(16, 44);
+            return btn;
+        }
 
-            btnOpenStorage.Click +=
-                btnOpenStorage_Click;
+        // ── Body ─────────────────────────────────────────────
 
-            actions.Controls.Add(btnOpenStorage);
+        private TableLayoutPanel BuildBody()
+        {
+            var body = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = C_BG,
+                Padding = new Padding(16, 12, 16, 12),
+                Margin = new Padding(0)
+            };
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            btnClearLogs =
-                CreateButton(
-                    "Clear UI Logs",
-                    Color.FromArgb(124, 58, 237),
-                    150);
+            body.Controls.Add(BuildLeftPanel());
+            body.Controls.Add(BuildRightPanel());
 
-            btnClearLogs.Location =
-                new Point(210, 44);
+            return body;
+        }
 
-            btnClearLogs.Click +=
-                btnClearLogs_Click;
+        private Panel BuildLeftPanel()
+        {
+            var panel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = C_BG,
+                Margin = new Padding(0, 0, 12, 0)
+            };
 
-            actions.Controls.Add(btnClearLogs);
+            // Info card
+            var infoCard = MakeCard(0, 0, 280, 230);
+            panel.Controls.Add(infoCard);
 
-            btnClearDbLogs =
-                CreateButton(
-                    "Clear DB Logs",
-                    Color.FromArgb(234, 88, 12),
-                    150);
+            AddSectionHead(infoCard, "SERVER INFO", 16, 14);
 
-            btnClearDbLogs.Location =
-                new Point(404, 44);
+            int row = 44;
+            AddInfoPair(infoCard, "IP", ref row, out lblIpValue);
+            AddInfoPair(infoCard, "Port", ref row, out lblPortValue);
+            AddInfoPair(infoCard, "Started", ref row, out lblStartedAt);
+            AddInfoPair(infoCard, "Uptime", ref row, out lblUptime);
+            AddInfoPair(infoCard, "Encryption", ref row, out Label lblEnc); lblEnc.Text = "AES-256";
+            AddInfoPair(infoCard, "Chunk Size", ref row, out Label lblChunk); lblChunk.Text = "64 KB";
+            AddInfoPair(infoCard, "Storage", ref row, out lblStoragePath); lblStoragePath.Text = "Server Storage";
+            AddInfoPair(infoCard, "Database", ref row, out lblDbStatus);
 
-            btnClearDbLogs.Click +=
-                btnClearDbLogs_Click;
+            // Online clients card
+            var clientCard = MakeCard(0, 244, 280, 220);
+            panel.Controls.Add(clientCard);
 
-            actions.Controls.Add(btnClearDbLogs);
+            AddSectionHead(clientCard, "ONLINE CLIENTS", 16, 14);
 
-            TableLayoutPanel body =
-                new TableLayoutPanel();
+            lstOnlineClients = new ListBox
+            {
+                Location = new Point(14, 40),
+                Size = new Size(252, 120),
+                BackColor = C_BG,
+                ForeColor = C_TEXT,
+                BorderStyle = BorderStyle.None,
+                Font = F_MONO,
+                SelectionMode = SelectionMode.MultiExtended,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = 22
+            };
+            lstOnlineClients.DrawItem += LstOnlineClients_DrawItem;
+            clientCard.Controls.Add(lstOnlineClients);
 
-            body.Dock = DockStyle.Fill;
+            // Hairline separator
+            var sep = new Panel { Left = 14, Top = 166, Width = 252, Height = 1, BackColor = C_BORDER };
+            clientCard.Controls.Add(sep);
 
-            body.ColumnCount = 2;
-
-            body.ColumnStyles.Add(
-                new ColumnStyle(SizeType.Absolute, 360));
-
-            body.ColumnStyles.Add(
-                new ColumnStyle(SizeType.Percent, 100));
-
-            root.Controls.Add(body);
-
-            Panel left =
-                CreateCard();
-
-            left.Dock = DockStyle.Fill;
-
-            left.Margin =
-                new Padding(0, 0, 14, 0);
-
-            body.Controls.Add(left);
-
-            Label lblInfo =
-                CreateSectionTitle(
-                    "Server Information",
-                    18,
-                    16);
-
-            left.Controls.Add(lblInfo);
-
-            AddInfoRow(
-                left,
-                "Storage Path:",
-                out lblStoragePath,
-                62);
-
-            AddInfoRow(
-                left,
-                "Database:",
-                out lblDbStatus,
-                102);
-
-            AddInfoRow(
-                left,
-                "Encryption:",
-                out Label lblEnc,
-                142);
-
-            lblEnc.Text = "AES";
-
-            AddInfoRow(
-                left,
-                "Max Chunk:",
-                out Label lblChunk,
-                182);
-
-            lblChunk.Text = "64 KB";
-
-            AddInfoRow(
-                left,
-                "Started At:",
-                out lblStartedAt,
-                222);
-
-            AddInfoRow(
-                left,
-                "Uptime:",
-                out lblUptime,
-                262);
-
-            // Online Clients section
-            Label lblClients =
-                CreateSectionTitle(
-                    "Online Clients",
-                    18,
-                    292);
-
-            left.Controls.Add(lblClients);
-
-            lstOnlineClients = new ListBox();
-            lstOnlineClients.Location = new Point(18, 322);
-            lstOnlineClients.Size = new Size(320, 130);
-            lstOnlineClients.BackColor = Color.FromArgb(15, 23, 42);
-            lstOnlineClients.ForeColor = Color.White;
-            lstOnlineClients.BorderStyle = BorderStyle.FixedSingle;
-            lstOnlineClients.Font = new Font("Consolas", 10F);
-
-            left.Controls.Add(lstOnlineClients);
-
-            btnPushFile =
-                CreateButton(
-                    "Push File to Selected",
-                    Color.FromArgb(220, 38, 38),
-                    320);
-
-            btnPushFile.Location = new Point(18, 458);
+            btnPushFile = new Button
+            {
+                Text = "Push File to Selected",
+                Font = F_BTN,
+                ForeColor = C_TEXT,
+                BackColor = C_SURFACE,
+                FlatStyle = FlatStyle.Flat,
+                Location = new Point(14, 174),
+                Size = new Size(252, 32),
+                Cursor = Cursors.Hand
+            };
+            btnPushFile.FlatAppearance.BorderColor = C_BORDER;
+            btnPushFile.FlatAppearance.BorderSize = 1;
+            btnPushFile.FlatAppearance.MouseOverBackColor = C_BORDER;
             btnPushFile.Click += btnPushFile_Click;
+            clientCard.Controls.Add(btnPushFile);
 
-            left.Controls.Add(btnPushFile);
-
-            // Push timer to refresh client list
-            _pushTimer = new Timer();
-            _pushTimer.Interval = 3000; // every 3 seconds
+            _pushTimer = new Timer { Interval = 3000 };
             _pushTimer.Tick += PushTimer_Tick;
 
-            Panel right =
-                CreateCard();
-
-            right.Dock = DockStyle.Fill;
-
-            body.Controls.Add(right);
-
-            Label lblLogsTitle =
-                CreateSectionTitle(
-                    "Activity Logs",
-                    18,
-                    16);
-
-            right.Controls.Add(lblLogsTitle);
-
-            lstLogs = new ListBox();
-
-            lstLogs.Anchor =
-                AnchorStyles.Top |
-                AnchorStyles.Bottom |
-                AnchorStyles.Left |
-                AnchorStyles.Right;
-
-            lstLogs.Location =
-                new Point(18, 52);
-
-            lstLogs.Size =
-                new Size(900, 420);
-
-            lstLogs.BackColor =
-                Color.FromArgb(15, 23, 42);
-
-            lstLogs.ForeColor =
-                Color.White;
-
-            lstLogs.BorderStyle =
-                BorderStyle.FixedSingle;
-
-            lstLogs.Font =
-                new Font("Consolas", 10F);
-
-            right.Controls.Add(lstLogs);
-
-            right.Resize += (s, e) =>
+            // Anchor cards on resize
+            panel.Resize += (s, e) =>
             {
-                lstLogs.Size =
-                    new Size(
-                        right.Width - 36,
-                        right.Height - 70);
+                infoCard.Width = panel.Width;
+                clientCard.Width = panel.Width;
             };
 
-            Panel footer =
-                CreateCard();
+            return panel;
+        }
 
-            footer.Dock = DockStyle.Fill;
+        private void LstOnlineClients_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            e.DrawBackground();
 
-            footer.Margin = new Padding(0);
+            bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            Color bg = selected ? C_BORDER : C_BG;
+            Color fg = selected ? C_WHITE : C_TEXT;
 
-            root.Controls.Add(footer);
+            using (var brush = new SolidBrush(bg))
+                e.Graphics.FillRectangle(brush, e.Bounds);
 
-            lblFooter = new Label();
+            string text = ((ListBox)sender).Items[e.Index].ToString();
+            using (var brush = new SolidBrush(fg))
+                e.Graphics.DrawString(text, F_MONO, brush, e.Bounds.X + 6, e.Bounds.Y + 3);
 
-            lblFooter.Text =
-                "Server is stopped";
+            e.DrawFocusRectangle();
+        }
 
-            lblFooter.ForeColor =
-                Color.FromArgb(203, 213, 225);
+        private Panel BuildRightPanel()
+        {
+            var panel = new Panel { Dock = DockStyle.Fill, BackColor = C_BG };
 
-            lblFooter.Font =
-                new Font(
-                    "Segoe UI",
-                    10F,
-                    FontStyle.Bold);
+            var card = MakeCard(0, 0, 600, 400);
+            card.Dock = DockStyle.Fill;
+            panel.Controls.Add(card);
 
-            lblFooter.AutoSize = true;
+            AddSectionHead(card, "ACTIVITY LOG", 16, 14);
 
-            lblFooter.Location =
-                new Point(18, 15);
+            lstLogs = new ListBox
+            {
+                Location = new Point(14, 42),
+                Size = new Size(560, 350),
+                BackColor = C_BG,
+                ForeColor = C_TEXT,
+                BorderStyle = BorderStyle.None,
+                Font = F_MONO,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = 20
+            };
+            lstLogs.DrawItem += LstLogs_DrawItem;
+            card.Controls.Add(lstLogs);
 
+            card.Resize += (s, e) =>
+            {
+                lstLogs.Size = new Size(card.Width - 28, card.Height - 56);
+            };
+
+            return panel;
+        }
+
+        private void LstLogs_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+
+            bool even = e.Index % 2 == 0;
+            Color bg = even ? C_BG : Color.FromArgb(14, 14, 18);
+            using (var brush = new SolidBrush(bg))
+                e.Graphics.FillRectangle(brush, e.Bounds);
+
+            string line = ((ListBox)sender).Items[e.Index].ToString();
+            // Split timestamp from message
+            int pipe = line.IndexOf('|');
+            if (pipe > 0)
+            {
+                string ts = line.Substring(0, pipe + 1);
+                string msg = line.Substring(pipe + 1);
+
+                using (var tsBrush = new SolidBrush(C_MUTED))
+                using (var msgBrush = new SolidBrush(C_TEXT))
+                {
+                    int tsW = TextRenderer.MeasureText(ts, F_MONO).Width;
+                    e.Graphics.DrawString(ts, F_MONO, tsBrush, e.Bounds.X + 8, e.Bounds.Y + 2);
+                    e.Graphics.DrawString(msg, F_MONO, msgBrush, e.Bounds.X + 8 + tsW, e.Bounds.Y + 2);
+                }
+            }
+            else
+            {
+                using (var b = new SolidBrush(C_TEXT))
+                    e.Graphics.DrawString(line, F_MONO, b, e.Bounds.X + 8, e.Bounds.Y + 2);
+            }
+        }
+
+        // ── Footer ───────────────────────────────────────────
+
+        private Panel BuildFooter()
+        {
+            var footer = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = C_SURFACE,
+                Padding = new Padding(0)
+            };
+
+            var topLine = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = C_BORDER };
+            footer.Controls.Add(topLine);
+
+            lblFooter = new Label
+            {
+                Text = "Server stopped — click Start to begin",
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = C_MUTED,
+                AutoSize = true,
+                Location = new Point(20, 10)
+            };
             footer.Controls.Add(lblFooter);
-            this.Resize += (s, e) =>
-            {
-                lstLogs.Width =
-                    this.Width - 470;
 
-                lstLogs.Height =
-                    this.Height - 360;
+            var version = new Label
+            {
+                Text = "v2.0",
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = C_BORDER,
+                AutoSize = true,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Location = new Point(footer.Width - 50, 10)
             };
+            footer.Controls.Add(version);
+            footer.Resize += (s, e) => version.Left = footer.Width - version.Width - 20;
+
+            return footer;
         }
 
-        private Panel CreateCard()
+        // ────────────────────────────────────────────────────
+        //  HELPERS
+        // ────────────────────────────────────────────────────
+
+        private Panel MakeCard(int x, int y, int w, int h)
         {
-            Panel panel = new Panel();
-
-            panel.BackColor =
-                Color.FromArgb(16, 27, 51);
-
-            return panel;
-        }
-
-        private Panel CreateSmallCard(
-            int width,
-            int height)
-        {
-            Panel panel = new Panel();
-
-            panel.Width = width;
-            panel.Height = height;
-
-            panel.BackColor =
-                Color.FromArgb(20, 34, 58);
-
-            return panel;
-        }
-
-        private Label CreateSectionTitle(
-            string text,
-            int x,
-            int y)
-        {
-            Label label = new Label();
-
-            label.Text = text;
-
-            label.Font =
-                new Font(
-                    "Segoe UI",
-                    13F,
-                    FontStyle.Bold);
-
-            label.ForeColor =
-                Color.White;
-
-            label.AutoSize = true;
-
-            label.Location =
-                new Point(x, y);
-
-            return label;
-        }
-
-        private Label CreateSmallLabel(
-            string text,
-            int x,
-            int y)
-        {
-            Label label = new Label();
-
-            label.Text = text;
-
-            label.Font =
-                new Font(
-                    "Segoe UI",
-                    9F,
-                    FontStyle.Bold);
-
-            label.ForeColor =
-                Color.FromArgb(203, 213, 225);
-
-            label.AutoSize = true;
-
-            label.Location =
-                new Point(x, y);
-
-            return label;
-        }
-
-        private Label CreateValueLabel(
-            string text,
-            int x,
-            int y)
-        {
-            Label label = new Label();
-
-            label.Text = text;
-
-            label.Font =
-                new Font(
-                    "Segoe UI",
-                    13F,
-                    FontStyle.Bold);
-
-            label.ForeColor =
-                Color.White;
-
-            label.AutoSize = true;
-
-            label.Location =
-                new Point(x, y);
-
-            return label;
-        }
-
-        private Button CreateButton(
-            string text,
-            Color color,
-            int width)
-        {
-            Button button = new Button();
-
-            button.Text = text;
-
-            button.Width = width;
-            button.Height = 36;
-
-            button.BackColor = color;
-
-            button.ForeColor =
-                Color.White;
-
-            button.FlatStyle =
-                FlatStyle.Flat;
-
-            button.FlatAppearance.BorderSize = 0;
-
-            button.Font =
-                new Font(
-                    "Segoe UI",
-                    10F,
-                    FontStyle.Bold);
-
-            return button;
-        }
-
-        private void AddInfoRow(
-            Panel parent,
-            string title,
-            out Label valueLabel,
-            int y)
-        {
-            Label titleLabel = new Label();
-
-            titleLabel.Text = title;
-
-            titleLabel.ForeColor =
-                Color.FromArgb(203, 213, 225);
-
-            titleLabel.Font =
-                new Font("Segoe UI", 10F);
-
-            titleLabel.Location =
-                new Point(18, y);
-
-            titleLabel.AutoSize = true;
-
-            parent.Controls.Add(titleLabel);
-
-            valueLabel = new Label();
-
-            valueLabel.Text = "-";
-
-            valueLabel.ForeColor =
-                Color.White;
-
-            valueLabel.Font =
-                new Font(
-                    "Segoe UI",
-                    10F,
-                    FontStyle.Bold);
-
-            valueLabel.Location =
-                new Point(130, y);
-
-            valueLabel.AutoSize = true;
-
-            parent.Controls.Add(valueLabel);
-        }
-
-        private async void btnStart_Click(
-            object sender,
-            EventArgs e)
-        {
-            int port;
-
-            if (!int.TryParse(txtPort.Text, out port))
+            var p = new Panel
             {
-                MessageBox.Show("Port không hợp lệ");
+                BackColor = C_SURFACE,
+                Location = new Point(x, y),
+                Size = new Size(w, h),
+                Padding = new Padding(0)
+            };
+            // Draw border via Paint
+            p.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(C_BORDER, 1))
+                    e.Graphics.DrawRectangle(pen, 0, 0, p.Width - 1, p.Height - 1);
+            };
+            return p;
+        }
+
+        private void AddSectionHead(Panel parent, string text, int x, int y)
+        {
+            var lbl = new Label
+            {
+                Text = text,
+                Font = new Font("Segoe UI", 7.5F, FontStyle.Bold),
+                ForeColor = C_MUTED,
+                AutoSize = true,
+                Location = new Point(x, y)
+            };
+            parent.Controls.Add(lbl);
+        }
+
+        private void AddInfoPair(Panel parent, string key, ref int row, out Label valueLabel)
+        {
+            var keyLbl = new Label
+            {
+                Text = key,
+                Font = F_LABEL,
+                ForeColor = C_MUTED,
+                AutoSize = true,
+                Location = new Point(16, row)
+            };
+            parent.Controls.Add(keyLbl);
+
+            valueLabel = new Label
+            {
+                Text = "—",
+                Font = F_VALUE,
+                ForeColor = C_TEXT,
+                AutoSize = true,
+                Location = new Point(115, row)
+            };
+            parent.Controls.Add(valueLabel);
+
+            row += 22;
+        }
+
+        private void SetStatus(bool running)
+        {
+            if (lblStatusDot == null || lblStatusText == null) return;
+
+            if (lblStatusDot.InvokeRequired)
+            {
+                lblStatusDot.Invoke(new Action(() => SetStatus(running)));
+                return;
+            }
+
+            if (running)
+            {
+                lblStatusDot.ForeColor = C_GREEN;
+                lblStatusText.Text = "RUNNING";
+                lblStatusText.ForeColor = C_GREEN;
+                lblFooter.Text = "Server is running normally";
+            }
+            else
+            {
+                lblStatusDot.ForeColor = C_RED;
+                lblStatusText.Text = "STOPPED";
+                lblStatusText.ForeColor = C_RED;
+                lblFooter.Text = "Server stopped — click Start to begin";
+            }
+        }
+
+        // ────────────────────────────────────────────────────
+        //  EVENT HANDLERS
+        // ────────────────────────────────────────────────────
+
+        private async void btnStart_Click(object sender, EventArgs e)
+        {
+            if (!int.TryParse(txtPort.Text, out int port))
+            {
+                MessageBox.Show("Invalid port number.");
                 return;
             }
 
             btnStart.Enabled = false;
             btnStop.Enabled = true;
-            btnStop.Text = "Stop Server";
-            btnStop.BackColor = Color.FromArgb(220, 38, 38);
+            btnStop.Text = "■  Stop";
+            btnStop.ForeColor = C_RED;
 
-            lblStatus.Text = "RUNNING";
-
-            lblStatus.ForeColor =
-                Color.FromArgb(34, 197, 94);
-
-            lblFooter.Text =
-                "Server is running normally";
+            SetStatus(true);
 
             _startedAt = DateTime.Now;
-
-            lblStartedAt.Text =
-                _startedAt.Value.ToString("HH:mm:ss");
-
+            lblStartedAt.Text = _startedAt.Value.ToString("HH:mm:ss");
             lblIpValue.Text = txtIp.Text;
             lblPortValue.Text = txtPort.Text;
 
             _pushTimer.Start();
-
             AddLog("Starting server...");
 
-            await Task.Run(async () =>
-            {
-                await _server.StartAsync(port);
-            });
+            await Task.Run(async () => await _server.StartAsync(port));
         }
 
-        private async void btnStop_Click(
-            object sender,
-            EventArgs e)
+        private async void btnStop_Click(object sender, EventArgs e)
         {
             if (_server.IsRunning)
             {
                 _server.Stop();
 
                 if (_startedAt.HasValue)
-                {
                     _pausedTotal += DateTime.Now - _startedAt.Value;
-                }
                 _startedAt = null;
 
                 btnStart.Enabled = true;
-                btnStop.Text = "Resume Server";
-                btnStop.BackColor = Color.FromArgb(22, 128, 61);
+                btnStop.Text = "▶  Resume";
+                btnStop.ForeColor = C_GREEN;
 
-                lblStatus.Text = "STOPPED";
-                lblStatus.ForeColor = Color.FromArgb(239, 68, 68);
-                lblFooter.Text = "Server stopped - Click Resume to restart";
+                SetStatus(false);
+                lblFooter.Text = "Server paused — click Resume to continue";
 
-                AddLog("Server stopped");
+                AddLog("Server stopped.");
             }
             else
             {
@@ -864,258 +688,155 @@ namespace FileTransfer.Server
 
                 btnStart.Enabled = false;
                 btnStop.Enabled = true;
-                btnStop.Text = "Stop Server";
-                btnStop.BackColor = Color.FromArgb(220, 38, 38);
+                btnStop.Text = "■  Stop";
+                btnStop.ForeColor = C_RED;
 
-                lblStatus.Text = "RUNNING";
-                lblStatus.ForeColor = Color.FromArgb(34, 197, 94);
-                lblFooter.Text = "Server is running normally";
+                SetStatus(true);
 
                 lblIpValue.Text = txtIp.Text;
                 lblPortValue.Text = txtPort.Text;
 
                 _pushTimer.Start();
-
                 AddLog("Resuming server...");
 
-                int port;
-                int.TryParse(txtPort.Text, out port);
-
-                await Task.Run(async () =>
-                {
-                    await _server.StartAsync(port);
-                });
+                int.TryParse(txtPort.Text, out int port);
+                await Task.Run(async () => await _server.StartAsync(port));
             }
         }
 
-        private async void btnRestart_Click(
-            object sender,
-            EventArgs e)
+        private async void btnRestart_Click(object sender, EventArgs e)
         {
             AddLog("Restarting server...");
-
             _server.Stop();
-
             await Task.Delay(500);
-
             btnStart_Click(sender, e);
         }
 
-        private void btnClearLogs_Click(
-            object sender,
-            EventArgs e)
+        private void btnClearLogs_Click(object sender, EventArgs e)
         {
             lstLogs.Items.Clear();
-
-            AddLog("UI logs cleared");
+            AddLog("UI logs cleared.");
         }
 
-        private void btnOpenStorage_Click(
-            object sender,
-            EventArgs e)
+        private void btnOpenStorage_Click(object sender, EventArgs e)
         {
-            string path =
-                GetStorageFolder();
-
-            if (!Directory.Exists(path))
-            {
-                Directory.CreateDirectory(path);
-            }
-
+            string path = GetStorageFolder();
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
             Process.Start(path);
         }
 
-        private async void btnClearDbLogs_Click(
-            object sender,
-            EventArgs e)
+        private async void btnClearDbLogs_Click(object sender, EventArgs e)
         {
-            DialogResult result =
-                MessageBox.Show(
-                    "Bạn có chắc muốn xóa log database không?",
-                    "Confirm",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning);
+            var result = MessageBox.Show(
+                "Delete all database logs?",
+                "Confirm",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
 
-            if (result != DialogResult.Yes)
-                return;
+            if (result != DialogResult.Yes) return;
 
-            AdminCleanupService cleanupService =
-                new AdminCleanupService();
-
-            await cleanupService.ClearLogsAsync();
-
-            AddLog("Database logs cleared");
+            var svc = new AdminCleanupService();
+            await svc.ClearLogsAsync();
+            AddLog("Database logs cleared.");
         }
 
         private void AddLog(string message)
         {
-            if (lstLogs == null)
-                return;
+            if (lstLogs == null) return;
 
             if (lstLogs.InvokeRequired)
             {
-                lstLogs.Invoke(
-                    new Action(() =>
-                        AddLog(message)));
-
+                lstLogs.Invoke(new Action(() => AddLog(message)));
                 return;
             }
 
-            string log =
-                DateTime.Now.ToString("HH:mm:ss")
-                + " | "
-                + message;
-
-            lstLogs.Items.Add(log);
-
-            lstLogs.TopIndex =
-                lstLogs.Items.Count - 1;
+            string entry = DateTime.Now.ToString("HH:mm:ss") + " | " + message;
+            lstLogs.Items.Add(entry);
+            lstLogs.TopIndex = lstLogs.Items.Count - 1;
         }
 
-        private string GetLocalIpAddress()
+        private void Timer_Tick(object sender, EventArgs e)
         {
-            var host =
-                Dns.GetHostEntry(
-                    Dns.GetHostName());
-
-            var ip =
-                host.AddressList
-                .FirstOrDefault(x =>
-                    x.AddressFamily ==
-                    AddressFamily.InterNetwork);
-
-            return ip != null
-                ? ip.ToString()
-                : "127.0.0.1";
-        }
-
-        private string GetStorageFolder()
-        {
-            string appFolder =
-                AppDomain.CurrentDomain.BaseDirectory;
-
-            string storagePath =
-                Path.Combine(
-                    appFolder,
-                    "Storage");
-
-            if (!Directory.Exists(storagePath))
+            if (_startedAt.HasValue)
             {
-                Directory.CreateDirectory(storagePath);
-            }
-
-            return storagePath;
-        }
-        private string ShortPath(
-            string path,
-            int maxLength)
-                {
-                    if (string.IsNullOrWhiteSpace(path))
-                        return "-";
-
-                    if (path.Length <= maxLength)
-                        return path;
-
-                    string[] parts =
-                        path.Split(
-                            Path.DirectorySeparatorChar);
-
-                    if (parts.Length < 2)
-                        return path;
-
-                    return parts[0]
-                        + Path.DirectorySeparatorChar
-                        + "..."
-                        + Path.DirectorySeparatorChar
-                        + parts[parts.Length - 1];
-                }
-        private void PushTimer_Tick(object sender, EventArgs e)
-        {
-            if (!_server.IsRunning)
-                return;
-
-            var users = _server.GetOnlineUsers();
-
-            lstOnlineClients.Items.Clear();
-
-            if (users.Count == 0)
-            {
-                lstOnlineClients.Items.Add("(No clients connected)");
+                TimeSpan up = DateTime.Now - _startedAt.Value;
+                lblUptime.Text = up.ToString(@"hh\:mm\:ss");
+                lblUptime.ForeColor = C_GREEN;
             }
             else
             {
-                foreach (var user in users)
-                {
-                    lstOnlineClients.Items.Add(user);
-                }
+                lblUptime.Text = "—";
+                lblUptime.ForeColor = C_TEXT;
             }
+        }
+
+        private void PushTimer_Tick(object sender, EventArgs e)
+        {
+            if (!_server.IsRunning) return;
+
+            var users = _server.GetOnlineUsers();
+            lstOnlineClients.Items.Clear();
+
+            if (users.Count == 0)
+                lstOnlineClients.Items.Add("No clients connected");
+            else
+                foreach (var u in users)
+                    lstOnlineClients.Items.Add(u);
         }
 
         private async void btnPushFile_Click(object sender, EventArgs e)
         {
-            if (lstOnlineClients.SelectedItem == null)
+            if (lstOnlineClients.SelectedItems.Count == 0)
             {
-                MessageBox.Show("Please select a client from the list");
+                MessageBox.Show("Select at least one client.");
                 return;
             }
 
-            string selectedUsername = lstOnlineClients.SelectedItem.ToString();
-
-            if (selectedUsername.StartsWith("("))
+            var selected = new List<string>();
+            foreach (var item in lstOnlineClients.SelectedItems)
             {
-                MessageBox.Show("No clients connected");
-                return;
+                string name = item.ToString();
+                if (!name.StartsWith("No ")) selected.Add(name);
             }
 
-            OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Title = "Select file to push to " + selectedUsername;
+            if (selected.Count == 0) { MessageBox.Show("No valid clients selected."); return; }
 
-            if (dialog.ShowDialog() != DialogResult.OK)
-                return;
+            var dlg = new OpenFileDialog { Title = "Select files to push", Multiselect = true };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
 
-            string filePath = dialog.FileName;
-            AddLog("Pushing file to " + selectedUsername + ": " + filePath);
+            int ok = 0, fail = 0;
+            var failedList = new List<string>();
 
-            bool success = await _server.PushFileToClientAsync(
-                selectedUsername, filePath);
-
-            if (success)
+            foreach (var user in selected)
             {
-                AddLog("File queued for push: " + Path.GetFileName(filePath));
-                MessageBox.Show(
-                    "File queued for push to "
-                    + selectedUsername
-                    + ".\nClient will receive it on next poll.");
+                bool pushed = await _server.PushFilesToClientAsync(user, dlg.FileNames);
+                if (pushed) { ok++; AddLog("Push to " + user + ": " + dlg.FileNames.Length + " file(s)"); }
+                else { fail++; failedList.Add(user); AddLog("Push failed: " + user); }
             }
-            else
-            {
-                AddLog("Push failed");
-                MessageBox.Show("Push failed");
-            }
+
+            string summary = $"Done.\n\nSuccess: {ok}\nFailed:  {fail}";
+            if (fail > 0) summary += "\n\nFailed:\n  " + string.Join("\n  ", failedList);
+
+            MessageBox.Show(summary, "Push Results", MessageBoxButtons.OK,
+                fail > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
-        private void Timer_Tick(
-            object sender,
-            EventArgs e)
+        // ────────────────────────────────────────────────────
+        //  UTILITIES
+        // ────────────────────────────────────────────────────
+
+        private string GetLocalIpAddress()
         {
-            if (_startedAt.HasValue)
-            {
-                TimeSpan uptime =
-                    DateTime.Now -
-                    _startedAt.Value;
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            var ip = host.AddressList.FirstOrDefault(x => x.AddressFamily == AddressFamily.InterNetwork);
+            return ip?.ToString() ?? "127.0.0.1";
+        }
 
-                lblUptime.Text =
-                    uptime.ToString(@"hh\:mm\:ss");
-
-                lblUptime.ForeColor =
-                    Color.FromArgb(34, 197, 94);
-            }
-            else
-            {
-                lblUptime.Text = "-";
-                lblUptime.ForeColor =
-                    Color.White;
-            }
+        private string GetStorageFolder()
+        {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Storage");
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+            return path;
         }
     }
 }

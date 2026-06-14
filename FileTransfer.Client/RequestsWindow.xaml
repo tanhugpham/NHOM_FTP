@@ -1,0 +1,443 @@
+<Window x:Class="FileTransfer.Client.RequestsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Push Requests"
+        Width="820" Height="560"
+        MinWidth="680" MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        Background="#1C2333"
+        FontFamily="Segoe UI"
+        FontSize="13">
+
+    <Window.Resources>
+
+        <!-- Action button in context menu -->
+        <Style x:Key="ActionBtn" TargetType="Button">
+            <Setter Property="Width"           Value="70"/>
+            <Setter Property="Height"          Value="28"/>
+            <Setter Property="Foreground"      Value="#E2E8F0"/>
+            <Setter Property="Background"      Value="#2C3650"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush"     Value="#3A4560"/>
+            <Setter Property="Margin"          Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="8,4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3A4560"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Stat card -->
+        <Style x:Key="StatCard" TargetType="Border">
+            <Setter Property="Background"      Value="#242D42"/>
+            <Setter Property="BorderBrush"     Value="#3A4560"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="16,12"/>
+            <Setter Property="Margin"          Value="0,0,10,0"/>
+        </Style>
+
+        <!-- Refresh button -->
+        <Style x:Key="BtnRefresh" TargetType="Button">
+            <Setter Property="Background"      Value="#2C3650"/>
+            <Setter Property="Foreground"      Value="#B0BBCC"/>
+            <Setter Property="BorderBrush"     Value="#3A4560"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="16,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#3A4560"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#48567A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <!-- header bar -->
+            <RowDefinition Height="1"/>
+            <!-- hairline -->
+            <RowDefinition Height="Auto"/>
+            <!-- stat cards -->
+            <RowDefinition Height="*"/>
+            <!-- data grid -->
+            <RowDefinition Height="1"/>
+            <!-- hairline -->
+            <RowDefinition Height="32"/>
+            <!-- footer -->
+        </Grid.RowDefinitions>
+
+        <!-- ── HEADER ──────────────────────────────── -->
+        <Grid Grid.Row="0" Background="#242D42">
+            <Border Width="3" HorizontalAlignment="Left" Background="#6C8EF0"/>
+
+            <DockPanel Margin="20,0" LastChildFill="False">
+                <StackPanel Orientation="Vertical"
+                            VerticalAlignment="Center"
+                            DockPanel.Dock="Left">
+                    <TextBlock Text="Incoming Push Requests"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Manage files shared with you"
+                               FontSize="10"
+                               Foreground="#7A8BAA"/>
+                </StackPanel>
+
+                <Button Content="↻  Refresh"
+                        Style="{StaticResource BtnRefresh}"
+                        Width="100" Height="28"
+                        DockPanel.Dock="Right"
+                        Click="btnRefresh_Click"/>
+            </DockPanel>
+        </Grid>
+
+        <Border Grid.Row="1" Background="#3A4560"/>
+
+        <!-- ── STAT CARDS ──────────────────────────── -->
+        <Grid Grid.Row="2" Margin="16,12,16,10" Height="68">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Pending -->
+            <Border Grid.Column="0" Style="{StaticResource StatCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="38" Height="38"
+                            Background="#3A2C1A"
+                            Margin="0,0,12,0">
+                        <TextBlock Text="⏳"
+                                   FontSize="18"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="PENDING"
+                                   FontSize="9"
+                                   FontWeight="Bold"
+                                   Foreground="#7A8BAA"/>
+                        <TextBlock Text="{Binding PendingCount, FallbackValue=0}"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#FBBF24"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Accepted -->
+            <Border Grid.Column="1" Style="{StaticResource StatCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="38" Height="38"
+                            Background="#1E3A2A"
+                            Margin="0,0,12,0">
+                        <TextBlock Text="✓"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="#4ADE80"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="ACCEPTED"
+                                   FontSize="9"
+                                   FontWeight="Bold"
+                                   Foreground="#7A8BAA"/>
+                        <TextBlock Text="{Binding AcceptedCount, FallbackValue=0}"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#4ADE80"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Rejected -->
+            <Border Grid.Column="2" Style="{StaticResource StatCard}" Margin="0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="38" Height="38"
+                            Background="#3D2828"
+                            Margin="0,0,12,0">
+                        <TextBlock Text="✕"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#F87171"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="REJECTED"
+                                   FontSize="9"
+                                   FontWeight="Bold"
+                                   Foreground="#7A8BAA"/>
+                        <TextBlock Text="{Binding RejectedCount, FallbackValue=0}"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#F87171"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ── DATAGRID ────────────────────────────── -->
+        <Border Grid.Row="3"
+                Background="#242D42"
+                BorderBrush="#3A4560"
+                BorderThickness="1"
+                Margin="16,0,16,0">
+            <DataGrid x:Name="dgOffers"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      RowHeight="36"
+                      ColumnHeaderHeight="34"
+                      Background="#1C2333"
+                      RowBackground="#1C2333"
+                      AlternatingRowBackground="#212B3E"
+                      BorderThickness="0"
+                      HorizontalGridLinesBrush="#2C3650"
+                      FontFamily="Segoe UI"
+                      FontSize="12"
+                      Foreground="#E2E8F0"
+                      LoadingRow="dgOffers_LoadingRow">
+
+                <DataGrid.Resources>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background"      Value="#242D42"/>
+                        <Setter Property="Foreground"      Value="#7A8BAA"/>
+                        <Setter Property="FontWeight"      Value="Bold"/>
+                        <Setter Property="FontSize"        Value="10"/>
+                        <Setter Property="Padding"         Value="10,0"/>
+                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                        <Setter Property="BorderBrush"     Value="#3A4560"/>
+                    </Style>
+
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Padding"         Value="10,0"/>
+                        <Setter Property="FontSize"        Value="12"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Foreground"      Value="#E2E8F0"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridCell">
+                                    <Border Padding="10,0"
+                                            Background="{TemplateBinding Background}">
+                                        <ContentPresenter VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#F8FAFC"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#3D4E7A"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2C3650"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.Resources>
+
+                <DataGrid.Columns>
+
+                    <!-- Status badge -->
+                    <DataGridTemplateColumn Header="STATUS" Width="130">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Padding="8,3" HorizontalAlignment="Left">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDownloaded}" Value="True">
+                                                    <Setter Property="Background" Value="#1E3A2A"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsDownloaded}" Value="False">
+                                                    <Setter Property="Background" Value="#3A2C1A"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock FontSize="11" FontWeight="SemiBold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDownloaded}" Value="True">
+                                                        <Setter Property="Text"       Value="✓ Downloaded"/>
+                                                        <Setter Property="Foreground" Value="#4ADE80"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsDownloaded}" Value="False">
+                                                        <Setter Property="Text"       Value="⏳ Pending"/>
+                                                        <Setter Property="Foreground" Value="#FBBF24"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTextColumn Header="OFFER ID"
+                                        Binding="{Binding OfferId}"
+                                        Width="80"/>
+                    <DataGridTextColumn Header="FROM"
+                                        Binding="{Binding FromUser}"
+                                        Width="90"/>
+                    <DataGridTextColumn Header="FILES"
+                                        Binding="{Binding FileCount}"
+                                        Width="60"/>
+                    <DataGridTextColumn Header="SIZE"
+                                        Binding="{Binding SizeDisplay}"
+                                        Width="90"/>
+                    <DataGridTextColumn Header="RECEIVED AT"
+                                        Binding="{Binding ReceivedAtDisplay}"
+                                        Width="*"/>
+
+                    <!-- Action ⋮ -->
+                    <DataGridTemplateColumn Header="" Width="44">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="⋮"
+                                        Width="32" Height="26"
+                                        Background="Transparent"
+                                        Foreground="#7A8BAA"
+                                        FontSize="18"
+                                        FontWeight="Bold"
+                                        Cursor="Hand"
+                                        BorderThickness="0"
+                                        Click="btnContextMenu_Click">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="bd"
+                                                    Background="Transparent"
+                                                    Padding="0">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="#3A4560"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <Button.ContextMenu>
+                                        <ContextMenu Background="#242D42"
+                                                     BorderBrush="#3A4560"
+                                                     BorderThickness="1">
+                                            <ContextMenu.Resources>
+                                                <Style TargetType="MenuItem">
+                                                    <Setter Property="Background" Value="#242D42"/>
+                                                    <Setter Property="Foreground" Value="#E2E8F0"/>
+                                                    <Setter Property="FontFamily" Value="Segoe UI"/>
+                                                    <Setter Property="FontSize"   Value="12"/>
+                                                    <Setter Property="Padding"    Value="12,6"/>
+                                                </Style>
+                                            </ContextMenu.Resources>
+                                            <MenuItem x:Name="miAccept"
+                                                      Header="✓  Accept"
+                                                      Foreground="#4ADE80"
+                                                      FontWeight="SemiBold"
+                                                      Click="btnAccept_Click"/>
+                                            <MenuItem x:Name="miReject"
+                                                      Header="✕  Reject"
+                                                      Foreground="#F87171"
+                                                      FontWeight="SemiBold"
+                                                      Click="btnReject_Click"/>
+                                            <Separator/>
+                                            <MenuItem x:Name="miDetail"
+                                                      Header="ℹ  Detail"
+                                                      Click="btnDetail_Click"/>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <Border Grid.Row="4" Background="#3A4560"/>
+
+        <!-- ── FOOTER ──────────────────────────────── -->
+        <Grid Grid.Row="5" Background="#242D42">
+            <TextBlock Text="Select a row and click ⋮ to accept or reject"
+                       FontSize="10"
+                       Foreground="#7A8BAA"
+                       VerticalAlignment="Center"
+                       Margin="20,0"/>
+        </Grid>
+
+    </Grid>
+</Window>

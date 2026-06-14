@@ -11,6 +11,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace FileTransfer.Client.Networking
@@ -25,6 +26,7 @@ namespace FileTransfer.Client.Networking
 
         private string _targetHostname;
         private bool _disposed = false;
+        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
 
         public bool IsConnected
         {
@@ -103,18 +105,27 @@ namespace FileTransfer.Client.Networking
 
         /// <summary>
         /// Sends a JSON message and returns the response JSON.
+        /// Thread-safe via SemaphoreSlim.
         /// </summary>
         public async Task<string> SendMessageAsync(string message)
         {
-            if (_disposed || _sslStream == null)
-                throw new InvalidOperationException("Not connected");
+            await _sendLock.WaitAsync();
+            try
+            {
+                if (_disposed || _sslStream == null)
+                    throw new InvalidOperationException("Not connected");
 
-            await TcpMessageHelper.SendStringAsync(_sslStream, message);
+                await TcpMessageHelper.SendStringAsync(_sslStream, message);
 
-            string response =
-                await TcpMessageHelper.ReadStringAsync(_sslStream);
+                string response =
+                    await TcpMessageHelper.ReadStringAsync(_sslStream);
 
-            return response;
+                return response;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
 
         public void Disconnect()

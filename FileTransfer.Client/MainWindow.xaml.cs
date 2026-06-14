@@ -9,7 +9,9 @@ using FileTransfer.Shared.Responses;
 using Microsoft.Win32;
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
@@ -31,6 +33,7 @@ namespace FileTransfer.Client
         private string _currentUsername = "";
 
         private DispatcherTimer _pushPollTimer;
+        private List<OfferViewModel> _offerList = new List<OfferViewModel>();
 
         public MainWindow()
         {
@@ -66,7 +69,6 @@ namespace FileTransfer.Client
 
             try
             {
-                // Poll server for pending push files
                 string requestJson = JsonHelper.Serialize(
                     new NetworkMessage
                     {
@@ -77,49 +79,128 @@ namespace FileTransfer.Client
                 string responseJson =
                     await _clientService.SendMessageAsync(requestJson);
 
-                AddLog("Push poll response received");
-
                 var response =
-                    JsonHelper.Deserialize<DownloadFileResponseDto>(
-                        responseJson);
+                    JsonHelper.Deserialize<BaseResponseDto>(responseJson);
 
-                if (response != null && response.Success && response.FileData != null)
+                if (response != null && response.Success)
                 {
-                    AddLog(
-                        "Server pushed file: "
-                        + response.FileName
-                        + " ("
-                        + response.FileData.Length
-                        + " bytes)");
-
-                    // Show Save dialog
-                    SaveFileDialog saveDialog = new SaveFileDialog();
-                    saveDialog.FileName = response.FileName;
-
-                    bool? result = saveDialog.ShowDialog();
-
-                    if (result == true)
+                    // Try to parse as List<ServerPushOfferDto> (multi-offer)
+                    try
                     {
-                        File.WriteAllBytes(
-                            saveDialog.FileName,
-                            response.FileData);
+                        var offers = JsonHelper.Deserialize<List<ServerPushOfferDto>>(response.Message);
+                        if (offers != null && offers.Count > 0)
+                        {
+                            int newCount = 0;
+                            foreach (var offer in offers)
+                            {
+                                // Prevent duplicates
+                                if (_offerList.Any(o => o.OfferId == offer.OfferId))
+                                    continue;
 
-                        AddLog("Saved pushed file: " + saveDialog.FileName);
-                        MessageBox.Show(
-                            "Received file from server: "
-                            + response.FileName);
+                                var vm = new OfferViewModel
+                                {
+                                    OfferId = offer.OfferId,
+                                    FromUser = offer.FromUser,
+                                    FileCount = offer.Files.Count,
+                                    SizeDisplay = FormatFileSize(offer.TotalSize),
+                                    ReceivedAt = DateTime.Now,
+                                    ReceivedAtDisplay = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                                    FileNames = offer.Files.Select(f => f.FileName + " (" + FormatFileSize(f.FileSize) + ")").ToList(),
+                                    TotalSize = offer.TotalSize,
+                                    OriginalOffer = offer
+                                };
+
+                                _offerList.Add(vm);
+                                newCount++;
+                            }
+
+                            if (newCount > 0)
+                            {
+                                UpdateRequestsButton();
+                                AddLog("Received " + newCount + " new offer(s)");
+                            }
+                            return;
+                        }
                     }
-                    else
+                    catch { }
+
+                    // Fallback: old single offer
+                    try
                     {
-                        AddLog("User cancelled save for pushed file");
+                        var singleOffer = JsonHelper.Deserialize<ServerPushOfferDto>(response.Message);
+                        if (singleOffer != null && singleOffer.Files != null && singleOffer.Files.Count > 0)
+                        {
+                            if (!_offerList.Any(o => o.OfferId == singleOffer.OfferId))
+                            {
+                                var vm = new OfferViewModel
+                                {
+                                    OfferId = singleOffer.OfferId,
+                                    FromUser = singleOffer.FromUser,
+                                    FileCount = singleOffer.Files.Count,
+                                    SizeDisplay = FormatFileSize(singleOffer.TotalSize),
+                                    ReceivedAt = DateTime.Now,
+                                    ReceivedAtDisplay = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                                    FileNames = singleOffer.Files.Select(f => f.FileName + " (" + FormatFileSize(f.FileSize) + ")").ToList(),
+                                    TotalSize = singleOffer.TotalSize,
+                                    OriginalOffer = singleOffer
+                                };
+                                _offerList.Add(vm);
+                                UpdateRequestsButton();
+                                AddLog("Push offer received: " + singleOffer.Files.Count + " files");
+                            }
+                            return;
+                        }
                     }
+                    catch { }
+
+                    // Fallback: old direct file push
+                    try
+                    {
+                        var fileResponse = JsonHelper.Deserialize<DownloadFileResponseDto>(responseJson);
+                        if (fileResponse != null && fileResponse.FileData != null)
+                        {
+                            AddLog("Server pushed file: " + fileResponse.FileName);
+                            SaveFileDialog saveDialog = new SaveFileDialog();
+                            saveDialog.FileName = fileResponse.FileName;
+                            if (saveDialog.ShowDialog() == true)
+                            {
+                                File.WriteAllBytes(saveDialog.FileName, fileResponse.FileData);
+                                AddLog("Saved pushed file: " + saveDialog.FileName);
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
             catch (Exception ex)
             {
-                // Silently ignore poll errors
                 AddLog("Push poll error: " + ex.Message);
             }
+        }
+
+        private string FormatFileSize(long bytes)
+        {
+            if (bytes < 1024) return bytes + " B";
+            if (bytes < 1048576) return (bytes / 1024.0).ToString("F1") + " KB";
+            if (bytes < 1073741824) return (bytes / 1048576.0).ToString("F1") + " MB";
+            return (bytes / 1073741824.0).ToString("F2") + " GB";
+        }
+
+        public void UpdateRequestsButton()
+        {
+            btnOpenRequests.Content = "Requests (" + _offerList.Count + ")";
+        }
+
+        private void btnOpenRequests_Click(object sender, RoutedEventArgs e)
+        {
+            StopPushPolling();  // Stop timer to prevent concurrent SSL access
+            var window = new RequestsWindow(_clientService, _offerList, this, _currentUsername);
+            window.Owner = this;
+            window.ShowDialog();
+            UpdateRequestsButton();
+            // Remove only rejected offers, keep accepted for re-download
+            _offerList.RemoveAll(o => o.OriginalOffer.Status == "Rejected");
+            StartPushPolling();  // Restart timer after modal closes
         }
 
         private async void StartPushPolling()
@@ -304,7 +385,7 @@ namespace FileTransfer.Client
 
                 await RefreshFileListAsync();
 
-                MessageBox.Show("Upload nhiều file hoàn tất");
+                System.Windows.MessageBox.Show("✅ Upload Complete\n\nAll selected files have been uploaded successfully.", "Upload Successful", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -575,7 +656,7 @@ namespace FileTransfer.Client
 
                 AddLog("Downloaded file: " + saveDialog.FileName);
 
-                MessageBox.Show("Download thành công");
+                System.Windows.MessageBox.Show("✅ Download Complete\n\nThe file has been saved successfully.", "Download Successful", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -854,7 +935,7 @@ namespace FileTransfer.Client
             
         }
 
-        private void AddLog(string message)
+        public void AddLog(string message)
         {
             string log =
                 DateTime.Now.ToString("HH:mm:ss")
@@ -905,15 +986,9 @@ namespace FileTransfer.Client
 
                 txtShareCodeResult.Text = response.ShareCode;
 
-                AddLog(
-                    "Created share code for "
-                    + selectedFile.FileName
-                    + ": "
-                    + response.ShareCode);
+                AddLog("Created share code for " + selectedFile.FileName + ": " + response.ShareCode);
 
-                MessageBox.Show(
-                    "Mã chia sẻ: "
-                    + response.ShareCode);
+                System.Windows.MessageBox.Show("🔑 Share Code Created\n\n**Code:** `" + response.ShareCode + "`\n\nShare this code with the recipient.", "Share Code", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -970,11 +1045,9 @@ namespace FileTransfer.Client
                 progressDownload.Value = 100;
                 txtDownloadProgress.Text = "100%";
 
-                AddLog(
-                    "Downloaded shared file: "
-                    + saveDialog.FileName);
+                AddLog("Downloaded shared file: " + saveDialog.FileName);
 
-                MessageBox.Show("Download file chia sẻ thành công");
+                System.Windows.MessageBox.Show("✅ Shared File Downloaded\n\nThe shared file has been saved successfully.", "Download Complete", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {

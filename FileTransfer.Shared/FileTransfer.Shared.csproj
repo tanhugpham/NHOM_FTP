@@ -57,6 +57,7 @@
     <Compile Include="DTOs\FileTransferRequestDto.cs" />
     <Compile Include="DTOs\LoginRequestDto.cs" />
     <Compile Include="DTOs\ServerPushFileDto.cs" />
+    <Compile Include="DTOs\ServerPushOfferDto.cs" />
     <Compile Include="DTOs\RegisterRequestDto.cs" />
     <Compile Include="DTOs\ResumeCheckRequestDto.cs" />
     <Compile Include="DTOs\ResumeCheckResponseDto.cs" />

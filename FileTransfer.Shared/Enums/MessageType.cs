@@ -24,6 +24,9 @@ namespace FileTransfer.Shared.Enums
         DownloadSharedFile,
         ServerPushFile,
         CheckForPush,
-        Logout
+        Logout,
+        PushOffer,
+        PushAccept,
+        PushReject
     }
 }

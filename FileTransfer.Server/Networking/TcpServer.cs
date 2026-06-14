@@ -41,23 +41,23 @@ namespace FileTransfer.Server.Networking
         private SharedFileService _sharedFileService =
             new SharedFileService();
 
-        private Dictionary<string, string> _uploadingFiles =
-            new Dictionary<string, string>();
+        private ConcurrentDictionary<string, string> _uploadingFiles =
+            new ConcurrentDictionary<string, string>();
 
-        private Dictionary<TcpClient, string> _clientUsers =
-            new Dictionary<TcpClient, string>();
+        private ConcurrentDictionary<TcpClient, string> _clientUsers =
+            new ConcurrentDictionary<TcpClient, string>();
 
-        // Pending push files: username -> ServerPushFileDto
-        private ConcurrentDictionary<string, ServerPushFileDto> _pendingPushes =
-            new ConcurrentDictionary<string, ServerPushFileDto>();
+        // Pending push offers: username -> (offerId -> ServerPushOfferDto)
+        private ConcurrentDictionary<string, ConcurrentDictionary<string, ServerPushOfferDto>> _pendingOffers =
+            new ConcurrentDictionary<string, ConcurrentDictionary<string, ServerPushOfferDto>>();
+        // Active offers ready for delivery: offerId -> (username, filePaths)
+        private ConcurrentDictionary<string, (string username, string[] filePaths)> _activeOffers =
+            new ConcurrentDictionary<string, (string username, string[] filePaths)>();
 
         private X509Certificate2 _serverCertificate;
         private X509Certificate2 _caCertificate;
 
         public event Action<string> OnLog;
-
-        // Event to notify UI when client list changes
-        public event Action OnClientListChanged;
 
         public bool IsRunning { get; private set; }
 
@@ -66,48 +66,56 @@ namespace FileTransfer.Server.Networking
         /// </summary>
         public List<string> GetOnlineUsers()
         {
-            lock (_clientUsers)
-            {
-                return _clientUsers.Values.ToList();
-            }
+            return _clientUsers.Values.ToList();
         }
 
         /// <summary>
-        /// Queues a file to be pushed to the specified user.
-        /// The next time the client polls CheckForPush, they'll receive it.
+        /// Queues multiple files as a PushOffer for the specified user.
+        /// The next time the client polls, they'll receive the offer (not file data).
         /// </summary>
-        public async Task<bool> PushFileToClientAsync(
-            string username, string filePath)
+        public Task<bool> PushFilesToClientAsync(
+            string username, string[] filePaths)
         {
-            if (!File.Exists(filePath))
+            if (filePaths == null || filePaths.Length == 0)
+                return Task.FromResult(false);
+
+            var fileList = new List<PushFileInfo>();
+            long totalSize = 0;
+            string offerId = Guid.NewGuid().ToString("N").Substring(0, 8);
+
+            foreach (string fp in filePaths)
             {
-                OnLog?.Invoke("Push file not found: " + filePath);
-                return false;
+                if (!File.Exists(fp)) continue;
+                var fi = new FileInfo(fp);
+                fileList.Add(new PushFileInfo
+                {
+                    FileName = fi.Name,
+                    FileSize = fi.Length
+                });
+                totalSize += fi.Length;
             }
 
-            string fileName = Path.GetFileName(filePath);
-            byte[] fileData = File.ReadAllBytes(filePath);
-            long fileSize = new FileInfo(filePath).Length;
+            if (fileList.Count == 0) return Task.FromResult(false);
 
-            var pushDto = new ServerPushFileDto
+            var offer = new ServerPushOfferDto
             {
-                FileName = fileName,
-                FileSize = fileSize,
-                FileData = fileData
+                OfferId = offerId,
+                FromUser = "Server",
+                Files = fileList,
+                TotalSize = totalSize,
+                Status = "Pending"
             };
 
-            _pendingPushes[username] = pushDto;
+            // Safe multi-offer add
+            var inner = _pendingOffers.GetOrAdd(username,
+                _ => new ConcurrentDictionary<string, ServerPushOfferDto>());
+            inner.TryAdd(offer.OfferId, offer);
+            _activeOffers.TryAdd(offerId, (username, filePaths));
 
-            OnLog?.Invoke(
-                "Push queued for "
-                + username
-                + ": "
-                + fileName
-                + " ("
-                + fileSize
-                + " bytes)");
+            OnLog?.Invoke("Push offer created for " + username + ": " 
+                + fileList.Count + " files, " + totalSize + " bytes, offerId=" + offerId);
 
-            return true;
+            return Task.FromResult(true);
         }
 
         public async Task StartAsync(int port)
@@ -186,7 +194,9 @@ namespace FileTransfer.Server.Networking
 
             IsRunning = false;
 
-            OnLog?.Invoke("Server stopped");
+            _pendingOffers.Clear();
+            _activeOffers.Clear();
+            OnLog?.Invoke("Server stopped - all offer caches cleared");
         }
 
         private async Task HandleClientAsync(TcpClient client)
@@ -279,7 +289,7 @@ namespace FileTransfer.Server.Networking
             {
                 if (_clientUsers.ContainsKey(client))
                 {
-                    _clientUsers.Remove(client);
+                    _clientUsers.TryRemove(client, out _);
                 }
 
                 if (sslStream != null)
@@ -387,6 +397,12 @@ namespace FileTransfer.Server.Networking
 
                 case MessageType.Logout:
                     return HandleLogout(client);
+
+                case MessageType.PushAccept:
+                    return HandlePushAccept(networkMessage, client);
+
+                case MessageType.PushReject:
+                    return HandlePushReject(networkMessage, client);
 
                 default:
                     return new BaseResponseDto
@@ -634,7 +650,7 @@ namespace FileTransfer.Server.Networking
 
             if (_uploadingFiles.ContainsKey(completeDto.FileId))
             {
-                _uploadingFiles.Remove(completeDto.FileId);
+                _uploadingFiles.TryRemove(completeDto.FileId, out _);
             }
 
             return new BaseResponseDto
@@ -905,38 +921,93 @@ namespace FileTransfer.Server.Networking
             string username = GetCurrentUsername(client);
 
             if (string.IsNullOrWhiteSpace(username) || username == "Unknown")
+                return new BaseResponseDto { Success = false, Message = "Not authenticated" };
+
+            // Return ALL pending offers for this user
+            if (_pendingOffers.TryGetValue(username, out var inner) && inner.Count > 0)
             {
+                var allOffers = inner.Values.ToList();
+                string offerListJson = JsonHelper.Serialize(allOffers);
+
+                OnLog?.Invoke("Sending " + allOffers.Count + " pending offers to " + username);
+
                 return new BaseResponseDto
                 {
-                    Success = false,
-                    Message = "Not authenticated"
-                };
-            }
-
-            // Check if there's a pending push for this user
-            if (_pendingPushes.TryRemove(username, out ServerPushFileDto pushDto))
-            {
-                OnLog?.Invoke(
-                    "Delivering push to "
-                    + username
-                    + ": "
-                    + pushDto.FileName);
-
-                // Wrap push DTO in JsonBody for response
-                return new DownloadFileResponseDto
-                {
                     Success = true,
-                    Message = "Push file available",
-                    FileName = pushDto.FileName,
-                    FileData = pushDto.FileData
+                    Message = offerListJson
                 };
             }
 
-            return new BaseResponseDto
+            return new BaseResponseDto { Success = false, Message = "No pending offer" };
+        }
+
+        private BaseResponseDto HandlePushAccept(NetworkMessage msg, TcpClient client)
+        {
+            string username = GetCurrentUsername(client);
+            string offerId = msg.JsonBody;
+
+            if (_pendingOffers.TryGetValue(username, out var inner))
             {
-                Success = false,
-                Message = "No pending push"
-            };
+                if (inner.TryRemove(offerId, out ServerPushOfferDto offer))
+                {
+                    // Clean up inner dict if empty
+                    if (inner.IsEmpty)
+                        _pendingOffers.TryRemove(username, out _);
+
+                    offer.Status = "Accepted";
+                    OnLog?.Invoke("Push offer accepted by " + username + ": " + offerId);
+
+                    // Deliver actual file data now
+                    if (_activeOffers.TryRemove(offerId, out var entry))
+                    {
+                        var allFileData = new List<ServerPushFileDto>();
+                        foreach (string fp in entry.filePaths)
+                        {
+                            if (!File.Exists(fp)) continue;
+                            allFileData.Add(new ServerPushFileDto
+                            {
+                                FileName = Path.GetFileName(fp),
+                                FileSize = new FileInfo(fp).Length,
+                                FileData = File.ReadAllBytes(fp)
+                            });
+                        }
+
+                        string dataJson = JsonHelper.Serialize(allFileData);
+                        OnLog?.Invoke("Delivering " + allFileData.Count + " files to " + username);
+                        OnLog?.Invoke("Offer cleaned from active offers: " + offerId);
+
+                        return new BaseResponseDto { Success = true, Message = dataJson };
+                    }
+                    return new BaseResponseDto { Success = false, Message = "Offer expired" };
+                }
+                return new BaseResponseDto { Success = false, Message = "No pending offer" };
+            }
+            return new BaseResponseDto { Success = false, Message = "No pending offer" };
+        }
+
+        private BaseResponseDto HandlePushReject(NetworkMessage msg, TcpClient client)
+        {
+            string username = GetCurrentUsername(client);
+            string offerId = msg.JsonBody;
+
+            if (_pendingOffers.TryGetValue(username, out var inner))
+            {
+                if (inner.TryRemove(offerId, out ServerPushOfferDto offer))
+                {
+                    if (inner.IsEmpty)
+                        _pendingOffers.TryRemove(username, out _);
+
+                    offer.Status = "Rejected";
+                    OnLog?.Invoke("Push offer rejected by " + username + ": " + offerId);
+
+                    _activeOffers.TryRemove(offerId, out _);
+                    OnLog?.Invoke("Offer cleaned from active offers: " + offerId);
+
+                    return new BaseResponseDto { Success = true, Message = "Offer rejected" };
+                }
+                return new BaseResponseDto { Success = false, Message = "No pending offer" };
+            }
+            return new BaseResponseDto { Success = false, Message = "No pending offer" };
         }
 
         private BaseResponseDto HandleLogout(TcpClient client)
@@ -947,13 +1018,28 @@ namespace FileTransfer.Server.Networking
             {
                 if (_clientUsers.ContainsKey(client))
                 {
-                    _clientUsers.Remove(client);
+                    _clientUsers.TryRemove(client, out _);
                 }
 
-                _pendingPushes.TryRemove(username, out _);
+                _pendingOffers.TryRemove(username, out var removedOffers);
+                if (removedOffers != null)
+                    OnLog?.Invoke("Cleaned " + removedOffers.Count + " pending offers for: " + username);
+
+                // Remove all active offers for this user (snapshot then remove)
+                var activeKeys = _activeOffers.Keys.ToList();
+                int cleaned = 0;
+                foreach (var k in activeKeys)
+                {
+                    if (_activeOffers.TryGetValue(k, out var entry) && entry.username == username)
+                    {
+                        if (_activeOffers.TryRemove(k, out _))
+                            cleaned++;
+                    }
+                }
+                if (cleaned > 0)
+                    OnLog?.Invoke("Cleaned " + cleaned + " active offers for: " + username);
 
                 OnLog?.Invoke("User logged out: " + username);
-                OnClientListChanged?.Invoke();
 
                 return new BaseResponseDto
                 {
