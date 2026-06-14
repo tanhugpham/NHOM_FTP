@@ -48,6 +48,7 @@ namespace FileTransfer.Server
         private ListBox lstLogs;
 
         private DateTime? _startedAt;
+        private TimeSpan _pausedTotal = TimeSpan.Zero;
         private Timer _timer;
         private ToolTip _toolTip;
 
@@ -480,18 +481,24 @@ namespace FileTransfer.Server
                 out lblStartedAt,
                 222);
 
+            AddInfoRow(
+                left,
+                "Uptime:",
+                out lblUptime,
+                262);
+
             // Online Clients section
             Label lblClients =
                 CreateSectionTitle(
                     "Online Clients",
                     18,
-                    272);
+                    292);
 
             left.Controls.Add(lblClients);
 
             lstOnlineClients = new ListBox();
-            lstOnlineClients.Location = new Point(18, 302);
-            lstOnlineClients.Size = new Size(320, 150);
+            lstOnlineClients.Location = new Point(18, 322);
+            lstOnlineClients.Size = new Size(320, 130);
             lstOnlineClients.BackColor = Color.FromArgb(15, 23, 42);
             lstOnlineClients.ForeColor = Color.White;
             lstOnlineClients.BorderStyle = BorderStyle.FixedSingle;
@@ -505,7 +512,7 @@ namespace FileTransfer.Server
                     Color.FromArgb(220, 38, 38),
                     320);
 
-            btnPushFile.Location = new Point(18, 460);
+            btnPushFile.Location = new Point(18, 458);
             btnPushFile.Click += btnPushFile_Click;
 
             left.Controls.Add(btnPushFile);
@@ -595,30 +602,6 @@ namespace FileTransfer.Server
                 new Point(18, 15);
 
             footer.Controls.Add(lblFooter);
-
-            lblUptime = new Label();
-
-            lblUptime.Text =
-                "Uptime: 00:00:00";
-
-            lblUptime.ForeColor =
-                Color.FromArgb(203, 213, 225);
-
-            lblUptime.Font =
-                new Font(
-                    "Segoe UI",
-                    10F,
-                    FontStyle.Bold);
-
-            lblUptime.AutoSize = true;
-
-            lblUptime.Anchor =
-                AnchorStyles.Top | AnchorStyles.Right;
-
-            lblUptime.Location =
-                new Point(950, 15);
-
-            footer.Controls.Add(lblUptime);
             this.Resize += (s, e) =>
             {
                 lstLogs.Width =
@@ -821,6 +804,8 @@ namespace FileTransfer.Server
 
             btnStart.Enabled = false;
             btnStop.Enabled = true;
+            btnStop.Text = "Stop Server";
+            btnStop.BackColor = Color.FromArgb(220, 38, 38);
 
             lblStatus.Text = "RUNNING";
 
@@ -848,24 +833,59 @@ namespace FileTransfer.Server
             });
         }
 
-        private void btnStop_Click(
+        private async void btnStop_Click(
             object sender,
             EventArgs e)
         {
-            _server.Stop();
+            if (_server.IsRunning)
+            {
+                _server.Stop();
 
-            btnStart.Enabled = true;
-            btnStop.Enabled = false;
+                if (_startedAt.HasValue)
+                {
+                    _pausedTotal += DateTime.Now - _startedAt.Value;
+                }
+                _startedAt = null;
 
-            lblStatus.Text = "STOPPED";
+                btnStart.Enabled = true;
+                btnStop.Text = "Resume Server";
+                btnStop.BackColor = Color.FromArgb(22, 128, 61);
 
-            lblStatus.ForeColor =
-                Color.FromArgb(239, 68, 68);
+                lblStatus.Text = "STOPPED";
+                lblStatus.ForeColor = Color.FromArgb(239, 68, 68);
+                lblFooter.Text = "Server stopped - Click Resume to restart";
 
-            lblFooter.Text =
-                "Server stopped";
+                AddLog("Server stopped");
+            }
+            else
+            {
+                _startedAt = DateTime.Now - _pausedTotal;
+                _pausedTotal = TimeSpan.Zero;
 
-            AddLog("Server stopped");
+                btnStart.Enabled = false;
+                btnStop.Enabled = true;
+                btnStop.Text = "Stop Server";
+                btnStop.BackColor = Color.FromArgb(220, 38, 38);
+
+                lblStatus.Text = "RUNNING";
+                lblStatus.ForeColor = Color.FromArgb(34, 197, 94);
+                lblFooter.Text = "Server is running normally";
+
+                lblIpValue.Text = txtIp.Text;
+                lblPortValue.Text = txtPort.Text;
+
+                _pushTimer.Start();
+
+                AddLog("Resuming server...");
+
+                int port;
+                int.TryParse(txtPort.Text, out port);
+
+                await Task.Run(async () =>
+                {
+                    await _server.StartAsync(port);
+                });
+            }
         }
 
         private async void btnRestart_Click(
@@ -1085,13 +1105,16 @@ namespace FileTransfer.Server
                     _startedAt.Value;
 
                 lblUptime.Text =
-                    "Uptime: "
-                    + uptime.ToString(@"hh\:mm\:ss");
+                    uptime.ToString(@"hh\:mm\:ss");
+
+                lblUptime.ForeColor =
+                    Color.FromArgb(34, 197, 94);
             }
             else
             {
-                lblUptime.Text =
-                    "Uptime: 00:00:00";
+                lblUptime.Text = "-";
+                lblUptime.ForeColor =
+                    Color.White;
             }
         }
     }

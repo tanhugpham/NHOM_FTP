@@ -36,6 +36,7 @@ namespace FileTransfer.Client.Networking
 
         public async Task ConnectAsync(string ip, int port)
         {
+            _disposed = false;
             _targetHostname = ip;
 
             _client = new TcpClient();
@@ -143,6 +144,16 @@ namespace FileTransfer.Client.Networking
                 _caCertificate.Dispose();
                 _caCertificate = null;
             }
+        }
+
+        /// <summary>
+        /// Resets the disposed flag so the connection can be reused
+        /// after a re-connect. Call this before ConnectAsync if reusing
+        /// the same TcpClientService instance.
+        /// </summary>
+        public void ResetForReconnect()
+        {
+            _disposed = false;
         }
 
         private bool ValidateServerCertificate(

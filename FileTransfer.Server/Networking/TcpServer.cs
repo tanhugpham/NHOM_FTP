@@ -385,6 +385,9 @@ namespace FileTransfer.Server.Networking
                 case MessageType.CheckForPush:
                     return HandleCheckForPush(client);
 
+                case MessageType.Logout:
+                    return HandleLogout(client);
+
                 default:
                     return new BaseResponseDto
                     {
@@ -933,6 +936,36 @@ namespace FileTransfer.Server.Networking
             {
                 Success = false,
                 Message = "No pending push"
+            };
+        }
+
+        private BaseResponseDto HandleLogout(TcpClient client)
+        {
+            string username = GetCurrentUsername(client);
+
+            if (username != "Unknown")
+            {
+                if (_clientUsers.ContainsKey(client))
+                {
+                    _clientUsers.Remove(client);
+                }
+
+                _pendingPushes.TryRemove(username, out _);
+
+                OnLog?.Invoke("User logged out: " + username);
+                OnClientListChanged?.Invoke();
+
+                return new BaseResponseDto
+                {
+                    Success = true,
+                    Message = "Logged out successfully"
+                };
+            }
+
+            return new BaseResponseDto
+            {
+                Success = true,
+                Message = "No active session"
             };
         }
 

@@ -23,6 +23,7 @@ namespace FileTransfer.Shared.Enums
         CreateShareCode,
         DownloadSharedFile,
         ServerPushFile,
-        CheckForPush
+        CheckForPush,
+        Logout
     }
 }

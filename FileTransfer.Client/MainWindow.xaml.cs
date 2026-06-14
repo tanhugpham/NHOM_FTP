@@ -224,26 +224,17 @@ namespace FileTransfer.Client
             BaseResponseDto response =
                 await SendRequestAsync(MessageType.Login, loginDto);
 
-            MessageBox.Show(response.Message);
-
             if (response.Success)
             {
                 _currentUsername = txtUsername.Text.Trim();
 
-                txtStatus.Text = "Status: " + response.Message;
-                txtCurrentUser.Text = "User: " + _currentUsername;
-
-                LoginPanel.Visibility = Visibility.Collapsed;
-                MainPanel.Visibility = Visibility.Visible;
-
-                btnUpload.IsEnabled =
-                    _selectedFiles != null &&
-                    _selectedFiles.Length > 0;
-
-                btnRefreshFiles.IsEnabled = true;
-                btnDownload.IsEnabled = true;
-
-                StartPushPolling();
+                AlertTitle.Text = "Login Successful!";
+                AlertMessage.Text = "Welcome back, " + _currentUsername;
+                AlertOverlay.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                MessageBox.Show(response.Message);
             }
         }
 
@@ -771,6 +762,68 @@ namespace FileTransfer.Client
 
                 return sb.ToString();
             }
+        }
+
+        private void btnAlertOk_Click(object sender, RoutedEventArgs e)
+        {
+            AlertOverlay.Visibility = Visibility.Collapsed;
+
+            txtStatus.Text = "Status: " + _currentUsername;
+            txtCurrentUser.Text = "User: " + _currentUsername;
+
+            LoginPanel.Visibility = Visibility.Collapsed;
+            MainPanel.Visibility = Visibility.Visible;
+
+            btnUpload.IsEnabled =
+                _selectedFiles != null &&
+                _selectedFiles.Length > 0;
+
+            btnRefreshFiles.IsEnabled = true;
+            btnDownload.IsEnabled = true;
+
+            StartPushPolling();
+            AddLog("User logged in: " + _currentUsername);
+        }
+
+        private async void btnLogout_Click(object sender, RoutedEventArgs e)
+        {
+            StopPushPolling();
+
+            try
+            {
+                string requestJson = JsonHelper.Serialize(
+                    new NetworkMessage
+                    {
+                        Type = MessageType.Logout,
+                        JsonBody = "{}"
+                    });
+
+                await _clientService.SendMessageAsync(requestJson);
+                AddLog("Logged out from server");
+            }
+            catch (Exception ex)
+            {
+                AddLog("Logout error: " + ex.Message);
+            }
+
+            _currentUsername = "";
+            txtCurrentUser.Text = "User: -";
+
+            MainPanel.Visibility = Visibility.Collapsed;
+            LoginPanel.Visibility = Visibility.Visible;
+
+            txtPassword.Password = "";
+
+            btnRegister.IsEnabled = true;
+            btnLogin.IsEnabled = true;
+            btnDisconnect.IsEnabled = true;
+            btnUpload.IsEnabled = false;
+            btnRefreshFiles.IsEnabled = false;
+            btnDownload.IsEnabled = false;
+            btnConnect.IsEnabled = false;
+
+            txtStatus.Text = "Status: Connected - Ready to login";
+            AddLog("Ready for new login");
         }
 
         private void btnDisconnect_Click(object sender, RoutedEventArgs e)
