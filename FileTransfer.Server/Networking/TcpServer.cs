@@ -9,9 +9,11 @@ using FileTransfer.Shared.Responses;
 using FileTransfer.Shared.Security;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -45,12 +47,68 @@ namespace FileTransfer.Server.Networking
         private Dictionary<TcpClient, string> _clientUsers =
             new Dictionary<TcpClient, string>();
 
+        // Pending push files: username -> ServerPushFileDto
+        private ConcurrentDictionary<string, ServerPushFileDto> _pendingPushes =
+            new ConcurrentDictionary<string, ServerPushFileDto>();
+
         private X509Certificate2 _serverCertificate;
         private X509Certificate2 _caCertificate;
 
         public event Action<string> OnLog;
 
+        // Event to notify UI when client list changes
+        public event Action OnClientListChanged;
+
         public bool IsRunning { get; private set; }
+
+        /// <summary>
+        /// Returns a snapshot of online usernames.
+        /// </summary>
+        public List<string> GetOnlineUsers()
+        {
+            lock (_clientUsers)
+            {
+                return _clientUsers.Values.ToList();
+            }
+        }
+
+        /// <summary>
+        /// Queues a file to be pushed to the specified user.
+        /// The next time the client polls CheckForPush, they'll receive it.
+        /// </summary>
+        public async Task<bool> PushFileToClientAsync(
+            string username, string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                OnLog?.Invoke("Push file not found: " + filePath);
+                return false;
+            }
+
+            string fileName = Path.GetFileName(filePath);
+            byte[] fileData = File.ReadAllBytes(filePath);
+            long fileSize = new FileInfo(filePath).Length;
+
+            var pushDto = new ServerPushFileDto
+            {
+                FileName = fileName,
+                FileSize = fileSize,
+                FileData = fileData
+            };
+
+            _pendingPushes[username] = pushDto;
+
+            OnLog?.Invoke(
+                "Push queued for "
+                + username
+                + ": "
+                + fileName
+                + " ("
+                + fileSize
+                + " bytes)");
+
+            return true;
+        }
 
         public async Task StartAsync(int port)
         {
@@ -323,6 +381,9 @@ namespace FileTransfer.Server.Networking
 
                 case MessageType.DownloadSharedFile:
                     return HandleDownloadSharedFile(networkMessage, client);
+
+                case MessageType.CheckForPush:
+                    return HandleCheckForPush(client);
 
                 default:
                     return new BaseResponseDto
@@ -833,6 +894,45 @@ namespace FileTransfer.Server.Networking
                 LastChunkIndex = state.LastChunkIndex,
                 BytesReceived = state.BytesReceived,
                 IsCompleted = state.IsCompleted
+            };
+        }
+
+        private BaseResponseDto HandleCheckForPush(TcpClient client)
+        {
+            string username = GetCurrentUsername(client);
+
+            if (string.IsNullOrWhiteSpace(username) || username == "Unknown")
+            {
+                return new BaseResponseDto
+                {
+                    Success = false,
+                    Message = "Not authenticated"
+                };
+            }
+
+            // Check if there's a pending push for this user
+            if (_pendingPushes.TryRemove(username, out ServerPushFileDto pushDto))
+            {
+                OnLog?.Invoke(
+                    "Delivering push to "
+                    + username
+                    + ": "
+                    + pushDto.FileName);
+
+                // Wrap push DTO in JsonBody for response
+                return new DownloadFileResponseDto
+                {
+                    Success = true,
+                    Message = "Push file available",
+                    FileName = pushDto.FileName,
+                    FileData = pushDto.FileData
+                };
+            }
+
+            return new BaseResponseDto
+            {
+                Success = false,
+                Message = "No pending push"
             };
         }
 

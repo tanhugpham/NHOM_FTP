@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Collections.Generic;
 
 namespace FileTransfer.Server
 {
@@ -38,6 +39,11 @@ namespace FileTransfer.Server
         private Button btnClearLogs;
         private Button btnOpenStorage;
         private Button btnClearDbLogs;
+
+        // Push file UI
+        private ListBox lstOnlineClients;
+        private Button btnPushFile;
+        private Timer _pushTimer;
 
         private ListBox lstLogs;
 
@@ -474,6 +480,41 @@ namespace FileTransfer.Server
                 out lblStartedAt,
                 222);
 
+            // Online Clients section
+            Label lblClients =
+                CreateSectionTitle(
+                    "Online Clients",
+                    18,
+                    272);
+
+            left.Controls.Add(lblClients);
+
+            lstOnlineClients = new ListBox();
+            lstOnlineClients.Location = new Point(18, 302);
+            lstOnlineClients.Size = new Size(320, 150);
+            lstOnlineClients.BackColor = Color.FromArgb(15, 23, 42);
+            lstOnlineClients.ForeColor = Color.White;
+            lstOnlineClients.BorderStyle = BorderStyle.FixedSingle;
+            lstOnlineClients.Font = new Font("Consolas", 10F);
+
+            left.Controls.Add(lstOnlineClients);
+
+            btnPushFile =
+                CreateButton(
+                    "Push File to Selected",
+                    Color.FromArgb(220, 38, 38),
+                    320);
+
+            btnPushFile.Location = new Point(18, 460);
+            btnPushFile.Click += btnPushFile_Click;
+
+            left.Controls.Add(btnPushFile);
+
+            // Push timer to refresh client list
+            _pushTimer = new Timer();
+            _pushTimer.Interval = 3000; // every 3 seconds
+            _pushTimer.Tick += PushTimer_Tick;
+
             Panel right =
                 CreateCard();
 
@@ -797,6 +838,8 @@ namespace FileTransfer.Server
             lblIpValue.Text = txtIp.Text;
             lblPortValue.Text = txtPort.Text;
 
+            _pushTimer.Start();
+
             AddLog("Starting server...");
 
             await Task.Run(async () =>
@@ -966,6 +1009,71 @@ namespace FileTransfer.Server
                         + Path.DirectorySeparatorChar
                         + parts[parts.Length - 1];
                 }
+        private void PushTimer_Tick(object sender, EventArgs e)
+        {
+            if (!_server.IsRunning)
+                return;
+
+            var users = _server.GetOnlineUsers();
+
+            lstOnlineClients.Items.Clear();
+
+            if (users.Count == 0)
+            {
+                lstOnlineClients.Items.Add("(No clients connected)");
+            }
+            else
+            {
+                foreach (var user in users)
+                {
+                    lstOnlineClients.Items.Add(user);
+                }
+            }
+        }
+
+        private async void btnPushFile_Click(object sender, EventArgs e)
+        {
+            if (lstOnlineClients.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a client from the list");
+                return;
+            }
+
+            string selectedUsername = lstOnlineClients.SelectedItem.ToString();
+
+            if (selectedUsername.StartsWith("("))
+            {
+                MessageBox.Show("No clients connected");
+                return;
+            }
+
+            OpenFileDialog dialog = new OpenFileDialog();
+            dialog.Title = "Select file to push to " + selectedUsername;
+
+            if (dialog.ShowDialog() != DialogResult.OK)
+                return;
+
+            string filePath = dialog.FileName;
+            AddLog("Pushing file to " + selectedUsername + ": " + filePath);
+
+            bool success = await _server.PushFileToClientAsync(
+                selectedUsername, filePath);
+
+            if (success)
+            {
+                AddLog("File queued for push: " + Path.GetFileName(filePath));
+                MessageBox.Show(
+                    "File queued for push to "
+                    + selectedUsername
+                    + ".\nClient will receive it on next poll.");
+            }
+            else
+            {
+                AddLog("Push failed");
+                MessageBox.Show("Push failed");
+            }
+        }
+
         private void Timer_Tick(
             object sender,
             EventArgs e)

@@ -13,6 +13,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
+using System.Windows.Threading;
 using FileTransfer.Shared.Security;
 
 namespace FileTransfer.Client
@@ -28,6 +29,9 @@ namespace FileTransfer.Client
         private bool _isDisconnecting = false;
 
         private string _currentUsername = "";
+
+        private DispatcherTimer _pushPollTimer;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -48,6 +52,86 @@ namespace FileTransfer.Client
             LoginPanel.Visibility = Visibility.Visible;
             MainPanel.Visibility = Visibility.Collapsed;
             txtCurrentUser.Text = "User: -";
+
+            // Push polling timer
+            _pushPollTimer = new DispatcherTimer();
+            _pushPollTimer.Interval = TimeSpan.FromSeconds(5);
+            _pushPollTimer.Tick += PushPollTimer_Tick;
+        }
+
+        private async void PushPollTimer_Tick(object sender, EventArgs e)
+        {
+            if (!_clientService.IsConnected || _isDisconnecting)
+                return;
+
+            try
+            {
+                // Poll server for pending push files
+                string requestJson = JsonHelper.Serialize(
+                    new NetworkMessage
+                    {
+                        Type = MessageType.CheckForPush,
+                        JsonBody = "{}"
+                    });
+
+                string responseJson =
+                    await _clientService.SendMessageAsync(requestJson);
+
+                AddLog("Push poll response received");
+
+                var response =
+                    JsonHelper.Deserialize<DownloadFileResponseDto>(
+                        responseJson);
+
+                if (response != null && response.Success && response.FileData != null)
+                {
+                    AddLog(
+                        "Server pushed file: "
+                        + response.FileName
+                        + " ("
+                        + response.FileData.Length
+                        + " bytes)");
+
+                    // Show Save dialog
+                    SaveFileDialog saveDialog = new SaveFileDialog();
+                    saveDialog.FileName = response.FileName;
+
+                    bool? result = saveDialog.ShowDialog();
+
+                    if (result == true)
+                    {
+                        File.WriteAllBytes(
+                            saveDialog.FileName,
+                            response.FileData);
+
+                        AddLog("Saved pushed file: " + saveDialog.FileName);
+                        MessageBox.Show(
+                            "Received file from server: "
+                            + response.FileName);
+                    }
+                    else
+                    {
+                        AddLog("User cancelled save for pushed file");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Silently ignore poll errors
+                AddLog("Push poll error: " + ex.Message);
+            }
+        }
+
+        private async void StartPushPolling()
+        {
+            _pushPollTimer.Start();
+            AddLog("Push polling started");
+        }
+
+        private void StopPushPolling()
+        {
+            _pushPollTimer.Stop();
+            AddLog("Push polling stopped");
         }
 
         private async void btnConnect_Click(object sender, RoutedEventArgs e)
@@ -158,6 +242,8 @@ namespace FileTransfer.Client
 
                 btnRefreshFiles.IsEnabled = true;
                 btnDownload.IsEnabled = true;
+
+                StartPushPolling();
             }
         }
 
@@ -690,6 +776,9 @@ namespace FileTransfer.Client
         private void btnDisconnect_Click(object sender, RoutedEventArgs e)
         {
             _isDisconnecting = true;
+
+            StopPushPolling();
+
             _clientService.Disconnect();
 
             _currentUsername = "";

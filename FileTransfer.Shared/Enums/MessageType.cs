@@ -21,7 +21,8 @@ namespace FileTransfer.Shared.Enums
         GetFileList,
         DownloadFile, 
         CreateShareCode,
-        DownloadSharedFile
-
+        DownloadSharedFile,
+        ServerPushFile,
+        CheckForPush
     }
 }

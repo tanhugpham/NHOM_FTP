@@ -1,4 +1,7 @@
-﻿using FileTransfer.Shared.Helpers;
+﻿using FileTransfer.Shared.DTOs;
+using FileTransfer.Shared.Enums;
+using FileTransfer.Shared.Helpers;
+using FileTransfer.Shared.Protocols;
 using FileTransfer.Shared.Security;
 
 using System;
@@ -21,6 +24,7 @@ namespace FileTransfer.Client.Networking
         private X509Certificate2 _caCertificate;
 
         private string _targetHostname;
+        private bool _disposed = false;
 
         public bool IsConnected
         {
@@ -96,11 +100,15 @@ namespace FileTransfer.Client.Networking
             }
         }
 
+        /// <summary>
+        /// Sends a JSON message and returns the response JSON.
+        /// </summary>
         public async Task<string> SendMessageAsync(string message)
         {
-            await TcpMessageHelper.SendStringAsync(
-                _sslStream,
-                message);
+            if (_disposed || _sslStream == null)
+                throw new InvalidOperationException("Not connected");
+
+            await TcpMessageHelper.SendStringAsync(_sslStream, message);
 
             string response =
                 await TcpMessageHelper.ReadStringAsync(_sslStream);
@@ -110,15 +118,17 @@ namespace FileTransfer.Client.Networking
 
         public void Disconnect()
         {
+            _disposed = true;
+
             if (_sslStream != null)
             {
-                _sslStream.Close();
+                try { _sslStream.Close(); } catch { }
                 _sslStream = null;
             }
 
             if (_client != null)
             {
-                _client.Close();
+                try { _client.Close(); } catch { }
                 _client = null;
             }
 
