@@ -1,0 +1,82 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{977AB388-165D-4B87-8B14-81431FEC8F53}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>FileTransfer.Shared</RootNamespace>
+    <AssemblyName>FileTransfer.Shared</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\FileTransfer.Server\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="DTOs\CreateShareCodeRequestDto.cs" />
+    <Compile Include="DTOs\CreateShareCodeResponseDto.cs" />
+    <Compile Include="DTOs\DownloadFileRequestDto.cs" />
+    <Compile Include="DTOs\DownloadFileResponseDto.cs" />
+    <Compile Include="DTOs\DownloadSharedFileRequestDto.cs" />
+    <Compile Include="DTOs\FileChunkDto.cs" />
+    <Compile Include="DTOs\FileCompleteDto.cs" />
+    <Compile Include="DTOs\FileInfoDto.cs" />
+    <Compile Include="DTOs\FileStartRequestDto.cs" />
+    <Compile Include="DTOs\FileTransferRequestDto.cs" />
+    <Compile Include="DTOs\LoginRequestDto.cs" />
+    <Compile Include="DTOs\RegisterRequestDto.cs" />
+    <Compile Include="DTOs\ResumeCheckRequestDto.cs" />
+    <Compile Include="DTOs\ResumeCheckResponseDto.cs" />
+    <Compile Include="Enums\MessageType.cs" />
+    <Compile Include="Helpers\JsonHelper.cs" />
+    <Compile Include="Helpers\TcpMessageHelper.cs" />
+    <Compile Include="Protocols\NetworkMessage.cs" />
+    <Compile Include="Responses\BaseResponseDto.cs" />
+    <Compile Include="Responses\FileChunkResponseDto.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="DTOs\ResumeRequestDto.cs" />
+    <Compile Include="Responses\FileListResponseDto.cs" />
+    <Compile Include="Security\AesEncryptionHelper.cs" />
+    <Compile Include="Security\CertificateHelper.cs" />
+    <Compile Include="Security\CertificateValidation.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Models\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

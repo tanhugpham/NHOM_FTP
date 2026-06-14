@@ -1,0 +1,21 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Storage files
+Storage/
+**/Storage/
+
+# Secrets
+*.env
+.env
+appsettings.Development.json
+
+# Build outputs
+Debug/
+Release/
+
+# Packages cache
+packages/

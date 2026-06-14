@@ -1,0 +1,11 @@
+Ứng dụng truyền file thời gian thực
+- Chứng thực client (CA+ TSL/SSL)
+- tạo server + csdl. Tạo tài khoản cho client đăng nhập
+- Đăng nhập bằng tài khoản server cấp cho client (DTO)
+- Truyền tệp tin giữa 2 thiết bị qua mạng LAN/INTERNET
+- Hiển thị tiến trình theo thời gian thực (progress bar)
+- Hỗ trợ truyền file lớn, có thể resume nếu bị ngắt kết nối
+- Có thể đồng thời gửi nhiều file
+- Có thể gửi truyền nhiều chiều (Client <--> Server)
+- Mã hoá gói tin để đảm bảo tính bảo mật, mã hoá AES/RSA
+- Lưu lại lịch sử Client
